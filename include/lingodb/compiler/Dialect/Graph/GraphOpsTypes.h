@@ -4,6 +4,8 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 
+using namespace lingodb::compiler::dialect::subop;
+
 #define GET_TYPEDEF_CLASSES
 #include "lingodb/compiler/Dialect/Graph/GraphOpsTypes.h.inc"
 

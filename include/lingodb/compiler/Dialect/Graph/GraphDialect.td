@@ -8,6 +8,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "lingodb/compiler/Dialect/SubOperator/SubOperatorBase.td"
 
 //===----------------------------------------------------------------------===//
 // Graph dialect definition.
@@ -19,36 +20,64 @@ def Graph_Dialect : Dialect {
     let cppNamespace = "::lingodb::compiler::dialect::graph";
     let useDefaultTypePrinterParser=1;
     let useDefaultAttributePrinterParser=1;
+    let extraClassDeclaration = [{
+            private:
+            void registerTypes();
+            void registerAttrs();
+        }];
 }
 
 //===----------------------------------------------------------------------===//
 // Types
 //===----------------------------------------------------------------------===//
 
-class Graph_Type<string name, string typeMnemonic> : TypeDef<Graph_Dialect, name> {
+class Graph_Type<string name, string typeMnemonic, list<Trait> traits = []> : TypeDef<Graph_Dialect, name, traits> {
     let mnemonic = typeMnemonic;
 }
-def Graph : Graph_Type<"Graph", "graph"> {
-    let summary = "graph type";
+
+def NodeSetIterator : Graph_Type<"NodeSetIterator", "node_set_iterator"> {
+    let summary = "node set iterator";
 }
-def Node : Graph_Type<"Node", "node"> {
-    let summary = "node type";
+def EdgeSetIterator : Graph_Type<"EdgeSetIterator", "edge_set_iterator"> {
+    let summary = "edge set iterator";
 }
-def Edge : Graph_Type<"Edge", "edge"> {
-    let summary = "edge type";
+
+def NodeSet : Graph_Type<"NodeSet", "node_set", [State]> {
+    let summary = "node set";
+    let parameters = (ins "StateMembersAttr":$members);
+    let assemblyFormat = "`<` custom<StateMembers>($members) `>`";
 }
-def NodeSet : Graph_Type<"NodeSet", "node_set"> {
-    let summary = "set of nodes";
+def EdgeSet : Graph_Type<"EdgeSet", "edge_set", [State]> {
+    let summary = "edge set";
+    let parameters = (ins "StateMembersAttr":$members);
+    let assemblyFormat = "`<` custom<StateMembers>($members) `>`";
 }
-def EdgeSet : Graph_Type<"EdgeSet", "edge_set"> {
-    let summary = "set of edges";
+
+def Graph : Graph_Type<"Graph", "graph", [State]> {
+    let summary = "universal graph type";
+    let parameters = (ins "StateMembersAttr":$nodeMembers, "StateMembersAttr":$edgeMembers);
+    let assemblyFormat = "`<` custom<StateMembers>($nodeMembers) `,` custom<StateMembers>($edgeMembers) `>`";
+    let extraClassDeclaration = [{
+        StateMembersAttr getMembers();
+    }];
 }
-// def NodeIterator : Graph_Type<"NodeIterator", "node_iterator"> {
-//     let summary = "iterator over a set of nodes";
-// }
-// def EdgeIterator : Graph_Type<"EdgeIterator", "edge_iterator"> {
-//     let summary = "iterator over a set of edges";
-// }
+
+def NodeRef : Graph_Type<"NodeRef", "node_ref", [State]> {
+    let summary = "graph node reference";
+    let parameters = (ins "StateMembersAttr":$nodeMembers, "StateMembersAttr":$incomingMembers, "StateMembersAttr":$outgoingMembers, "StateMembersAttr":$propertyMembers);
+    let assemblyFormat = "`<` custom<StateMembers>($nodeMembers) `,` custom<StateMembers>($incomingMembers) `,` custom<StateMembers>($outgoingMembers) `,` custom<StateMembers>($propertyMembers) `>`";
+    let extraClassDeclaration = [{
+        StateMembersAttr getMembers();
+    }];
+}
+def EdgeRef : Graph_Type<"EdgeRef", "edge_ref", [State]> {
+    let summary = "graph edge reference";
+    let parameters = (ins "StateMembersAttr":$edgeMembers, "StateMembersAttr":$fromMembers, "StateMembersAttr":$toMembers, "StateMembersAttr":$propertyMembers);
+    let assemblyFormat = "`<` custom<StateMembers>($edgeMembers) `,` custom<StateMembers>($fromMembers) `,` custom<StateMembers>($toMembers) `,` custom<StateMembers>($propertyMembers) `>`";
+    let extraClassDeclaration = [{
+        StateMembersAttr getMembers();
+    }];
+}
 
 //===----------------------------------------------------------------------===//
 // Attributes
@@ -56,10 +85,9 @@ def EdgeSet : Graph_Type<"EdgeSet", "edge_set"> {
 
 class Graph_Attr<string name> : AttrDef<Graph_Dialect, name>;
 
-def PropertyRefAttr : Graph_Attr<"PropertyRef"> {
-    let mnemonic = "propertyref";
-    let parameters = (ins "mlir::SymbolRefAttr":$name); // TODO Add type information
-    let assemblyFormat = "`<` $name `>`"; // TODO use custom assembly format parser/printer
+// Currently needed because otherwise attribute part of the codegen won't run causing a compiler error
+def GraphDummyAttr : Graph_Attr<"GraphDummyAttr"> {
+    let mnemonic = "graph_dummy_attr";
 }
 
 #endif // LINGODB_DIALECT_GRAPH_DIALECT

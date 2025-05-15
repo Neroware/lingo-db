@@ -7,14 +7,7 @@
 
 #include "llvm/ADT/TypeSwitch.h"
 
-using namespace mlir;
 using namespace lingodb::compiler::dialect::graph;
-
-#define GET_ATTRDEF_CLASSES
-#include "lingodb/compiler/Dialect/Graph/GraphOpsAttributes.cpp.inc"
-
-#define GET_TYPEDEF_CLASSES
-#include "lingodb/compiler/Dialect/Graph/GraphOpsTypes.cpp.inc"
 
 void GraphDialect::initialize() {
     addOperations<
@@ -23,17 +16,7 @@ void GraphDialect::initialize() {
     
           >();
     
-       addTypes<
-    #define GET_TYPEDEF_LIST
-    #include "lingodb/compiler/Dialect/Graph/GraphOpsTypes.cpp.inc"
-    
-          >();
-       addAttributes<
-    #define GET_ATTRDEF_LIST
-    #include "lingodb/compiler/Dialect/Graph/GraphOpsAttributes.cpp.inc"
-    
-          >();
-    
-       // mlir::arith::CmpIOp::attachInterface<ArithCmpICmpInterface>(*getContext());
+    registerTypes();
+    registerAttrs();
 }
 #include "lingodb/compiler/Dialect/Graph/GraphOpsDialect.cpp.inc"
