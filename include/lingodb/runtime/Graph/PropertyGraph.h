@@ -12,6 +12,7 @@ class PropertyGraph;
 struct NodeSetIterator {
     virtual bool isValid() = 0;
     virtual void next() = 0;
+    virtual node_id_t operator*() = 0;
 
     virtual PropertyGraph* getPropertyGraph() = 0;
     static bool isIteratorValid(NodeSetIterator* iterator);
@@ -19,12 +20,13 @@ struct NodeSetIterator {
 
     static PropertyGraph* iteratorGetPropertyGraph(NodeSetIterator* iterator);
     static void destroy(NodeSetIterator* iterator);
-    static void iterate(NodeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, node_id_t), void*);
+    static void iterate(NodeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, node_id_t));
     virtual ~NodeSetIterator() {}
 }; // NodeSetIterator
 struct EdgeSetIterator {
     virtual bool isValid() = 0;
     virtual void next() = 0;
+    virtual relationship_id_t operator*() = 0;
 
     virtual PropertyGraph* getPropertyGraph() = 0;
     static bool isIteratorValid(EdgeSetIterator* iterator);
@@ -32,7 +34,7 @@ struct EdgeSetIterator {
 
     static PropertyGraph* iteratorGetPropertyGraph(EdgeSetIterator* iterator);
     static void destroy(EdgeSetIterator* iterator);
-    static void iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t), void*);
+    static void iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t));
     virtual ~EdgeSetIterator() {}
 }; // EdgeSetIterator
 class PropertyGraph {
@@ -59,13 +61,17 @@ class PropertyGraph {
     std::vector<RelationshipEntry*> unusedRelEntries;
     PropertyGraph(size_t maxNodeCapacity, size_t maxRelCapacity) : nodes(maxNodeCapacity), relationships(maxRelCapacity) {}
 
-    size_t nodeEntryCount = 0;
-    size_t relEntryCount = 0;
+    node_id_t nodeBufferSize = 0;
+    relationship_id_t relBufferSize = 0;
 
     node_id_t getNodeId(NodeEntry* node) const;
     relationship_id_t getRelationshipId(RelationshipEntry* rel) const;
     NodeEntry* getNode(node_id_t node) const;
     RelationshipEntry* getRelationship(relationship_id_t rel) const;
+
+    struct AllNodesIterator;
+    struct AllEdgesIterator;
+    struct LinkedRelationshipsIterator;
 
     public:
     node_id_t addNode();
@@ -82,11 +88,11 @@ class PropertyGraph {
     static PropertyGraph* create(size_t initialNodeCapacity, size_t initialRelationshipCapacity);
     static void destroy(PropertyGraph*);
 
-    NodeSetIterator* createNodeSetIterator() const;
-    EdgeSetIterator* createEdgeSetIterator() const;
-    EdgeSetIterator* createConnectedEdgeSetIterator(node_id_t node) const;
-    EdgeSetIterator* createIncomingEdgeSetIterator(node_id_t node) const;
-    EdgeSetIterator* createOutgoingEdgeSetIterator(node_id_t node) const;
+    NodeSetIterator* createNodeSetIterator();
+    EdgeSetIterator* createEdgeSetIterator();
+    EdgeSetIterator* createConnectedEdgeSetIterator(node_id_t node);
+    EdgeSetIterator* createIncomingEdgeSetIterator(node_id_t node);
+    EdgeSetIterator* createOutgoingEdgeSetIterator(node_id_t node);
 
 }; // PropertyGraph
 } // lingodb::runtime::graph
