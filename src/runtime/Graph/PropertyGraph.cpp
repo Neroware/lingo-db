@@ -4,13 +4,13 @@
 namespace lingodb::runtime::graph {
 
 node_id_t PropertyGraph::getNodeId(NodeEntry* node) const {
-    return (node - nodes.ptr) / sizeof(NodeEntry);
+    return node - nodes.ptr;
 }
 PropertyGraph::NodeEntry* PropertyGraph::getNode(node_id_t node) const {
     return nodes.ptr + node;
 }
 relationship_id_t PropertyGraph::getRelationshipId(RelationshipEntry* rel) const {
-    return (rel - relationships.ptr) / sizeof(RelationshipEntry);
+    return rel - relationships.ptr;
 }
 PropertyGraph::RelationshipEntry* PropertyGraph::getRelationship(relationship_id_t rel) const {
     return relationships.ptr + rel;
@@ -44,6 +44,7 @@ relationship_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
     rel->inUse = true;
     rel->firstNode = from;
     rel->secondNode = to;
+    rel->type = 0;
     rel->firstNextRelation = rel->firstPrevRelation = rel->secondNextRelation = rel->secondPrevRelation = -1;
     if (fromNode->nextRelationship >= 0) {
         RelationshipEntry* fromNodeRelChain = getRelationship(fromNode->nextRelationship);
@@ -59,13 +60,13 @@ relationship_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
     fromNode->nextRelationship = relId;
     if (toNode->nextRelationship >= 0) {
         RelationshipEntry* toNodeRelChain = getRelationship(toNode->nextRelationship);
-        if (toNodeRelChain->firstNode == from) {
+        if (toNodeRelChain->firstNode == to) {
             toNodeRelChain->firstPrevRelation = relId;
-            rel->firstNextRelation = toNode->nextRelationship;   
+            rel->secondNextRelation = toNode->nextRelationship;   
         }
         else {
             toNodeRelChain->secondPrevRelation = relId;
-            rel->firstNextRelation = toNode->nextRelationship;
+            rel->secondNextRelation = toNode->nextRelationship;
         }
     }
     toNode->nextRelationship = relId;
@@ -88,6 +89,9 @@ void PropertyGraph::setRelationshipProperty(relationship_id_t id, int64_t value)
 }
 int64_t PropertyGraph::getRelationshipProperty(relationship_id_t id) const {
     return getRelationship(id)->property;
+}
+PropertyGraph* PropertyGraph::create(size_t initialNodeCapacity, size_t initialRelationshipCapacity) {
+    return new PropertyGraph(initialNodeCapacity, initialRelationshipCapacity);
 }
 void PropertyGraph::destroy(PropertyGraph* graph) {
     delete graph;
@@ -138,7 +142,7 @@ struct PropertyGraph::AllNodesIterator : NodeSetIterator {
     node_id_t node;
     AllNodesIterator(PropertyGraph* graph) : graph(graph), node(0) {}
     bool isValid() override {
-        return node < graph->nodeBufferSize && graph->getNode(node)->inUse;
+        return node >= 0 && node < graph->nodeBufferSize && graph->getNode(node)->inUse;
     }
     void next() override {
         if (!isValid())
@@ -164,7 +168,7 @@ struct PropertyGraph::AllEdgesIterator : EdgeSetIterator {
     relationship_id_t rel;
     AllEdgesIterator(PropertyGraph* graph) : graph(graph), rel(0) {}
     bool isValid() override {
-        return rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
+        return rel >= 0 && rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
     }
     void next() override {
         if (!isValid())
@@ -192,23 +196,39 @@ struct PropertyGraph::LinkedRelationshipsIterator : EdgeSetIterator {
     relationship_id_t rel;
     Mode mode;
     LinkedRelationshipsIterator(PropertyGraph* graph, node_id_t node, Mode mode = Mode::All) 
-        : graph(graph), node(node), rel(graph->getNode(node)->nextRelationship), mode(mode) {}
+        : graph(graph), node(node), rel(graph->getNode(node)->nextRelationship), mode(mode) {
+            while (isValidPtr() && !isValidMode()) {
+                RelationshipEntry* relPtr = graph->getRelationship(rel);
+                rel = relPtr->firstNode == node ? relPtr->firstNextRelation : relPtr->secondNextRelation;
+            }
+        }
     bool isValid() override {
-        return rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
+        return isValidPtr() && isValidMode();
     }
     void next() override {
-        while (isValid()) {
+        do {
             RelationshipEntry* relPtr = graph->getRelationship(rel);
             rel = relPtr->firstNode == node ? relPtr->firstNextRelation : relPtr->secondNextRelation;
-            if (mode == Mode::All || (mode == Mode::Incoming && relPtr->secondNode == node) 
-                || (mode == Mode::Outgoing && relPtr->firstNode == node)) break;
-        }
+        } while (isValidPtr() && !isValidMode());
     }
     relationship_id_t operator*() override {
         return rel;
     }
     PropertyGraph* getPropertyGraph() override {
         return graph;
+    }
+    private:
+    bool isValidPtr() {
+        return rel >= 0 && rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
+    }
+    bool isValidMode() {
+        if (mode == Mode::Outgoing) {
+            return graph->getRelationship(rel)->firstNode == node;
+        }
+        if (mode == Mode::Incoming) {
+            return graph->getRelationship(rel)->secondNode == node;
+        }
+        return true;
     }
 };
 EdgeSetIterator* PropertyGraph::createConnectedEdgeSetIterator(node_id_t node) {
