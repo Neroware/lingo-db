@@ -3,7 +3,7 @@
 
 #include "lingodb/runtime/helpers.h"
 
-namespace lingodb::runtime::graph {
+namespace lingodb::runtime {
 typedef int64_t node_id_t;
 typedef int64_t relationship_id_t;
 // Implementation of a native property graph following Graph Databases, 2nd Edition by Ian Robinson, Jim Webber & Emil Eifrem
@@ -86,6 +86,7 @@ class PropertyGraph {
     int64_t getRelationshipProperty(relationship_id_t id) const;
 
     static PropertyGraph* create(size_t initialNodeCapacity, size_t initialRelationshipCapacity);
+    static PropertyGraph* createTestGraph();
     static void destroy(PropertyGraph*);
 
     NodeSetIterator* createNodeSetIterator();

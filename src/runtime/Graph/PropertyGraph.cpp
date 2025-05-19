@@ -1,7 +1,7 @@
 #include "lingodb/runtime/Graph/PropertyGraph.h"
 #include <cassert>
 
-namespace lingodb::runtime::graph {
+namespace lingodb::runtime {
 
 node_id_t PropertyGraph::getNodeId(NodeEntry* node) const {
     return node - nodes.ptr;
@@ -92,6 +92,24 @@ int64_t PropertyGraph::getRelationshipProperty(relationship_id_t id) const {
 }
 PropertyGraph* PropertyGraph::create(size_t initialNodeCapacity, size_t initialRelationshipCapacity) {
     return new PropertyGraph(initialNodeCapacity, initialRelationshipCapacity);
+}
+PropertyGraph* PropertyGraph::createTestGraph() {
+    auto g = new PropertyGraph(16, 256);
+    for (int i = 0; i < 6; i++) {
+        g->addNode();
+    }
+    g->addRelationship(0, 2);
+    g->addRelationship(1, 0);
+    g->addRelationship(1, 2);
+    g->addRelationship(1, 4);
+    g->addRelationship(2, 4);
+    g->addRelationship(2, 3);
+    g->setRelationshipProperty(0, 111);
+    g->setRelationshipProperty(2, 222);
+    g->setRelationshipProperty(3, 333);
+    g->setRelationshipProperty(4, 444);
+    g->setRelationshipProperty(5, 555);
+    return g;
 }
 void PropertyGraph::destroy(PropertyGraph* graph) {
     delete graph;
