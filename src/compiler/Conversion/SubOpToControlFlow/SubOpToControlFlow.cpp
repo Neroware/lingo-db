@@ -12,6 +12,8 @@
 #include "lingodb/compiler/Dialect/util/FunctionHelper.h"
 #include "lingodb/compiler/Dialect/util/UtilDialect.h"
 #include "lingodb/compiler/Dialect/util/UtilOps.h"
+#include "lingodb/compiler/Dialect/Graph/GraphDialect.h"
+#include "lingodb/compiler/Dialect/Graph/GraphOps.h"
 #include "lingodb/compiler/runtime/Buffer.h"
 #include "lingodb/compiler/runtime/DataSourceIteration.h"
 #include "lingodb/compiler/runtime/EntryLock.h"
@@ -28,6 +30,7 @@
 #include "lingodb/compiler/runtime/SimpleState.h"
 #include "lingodb/compiler/runtime/ThreadLocal.h"
 #include "lingodb/compiler/runtime/Tracing.h"
+#include "lingodb/compiler/runtime/Graph/PropertyGraph.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
@@ -675,15 +678,15 @@ class SubOpRewriter {
    }
 
    bool shouldRewrite(mlir::Operation* op) {
-      if (op->getDialect()->getNamespace() == "subop") {
+      if (op->getDialect()->getNamespace() == "subop" || op->getDialect()->getNamespace() == "graph") {
          return true;
       }
       if (auto unrealizedCast = mlir::dyn_cast_or_null<mlir::UnrealizedConversionCastOp>(op)) {
          return llvm::any_of(unrealizedCast.getOutputs().getTypes(), [&](mlir::Type t) {
-                   return t.getDialect().getNamespace() == "subop";
+                   return t.getDialect().getNamespace() == "subop" || op->getDialect()->getNamespace() == "graph";
                 }) ||
             llvm::any_of(unrealizedCast.getInputs().getTypes(), [&](mlir::Type t) {
-                   return t.getDialect().getNamespace() == "subop";
+                   return t.getDialect().getNamespace() == "subop" || op->getDialect()->getNamespace() == "graph";
                 });
       }
       return false;
@@ -3919,6 +3922,51 @@ class LockLowering : public SubOpTupleStreamConsumerConversionPattern<subop::Loc
    }
 };
 
+//Graph
+
+class CreateGraphLowering : public SubOpConversionPattern<graph::CreateGraphOp> {
+   public:
+   using SubOpConversionPattern<graph::CreateGraphOp>::SubOpConversionPattern;
+   LogicalResult matchAndRewrite(graph::CreateGraphOp createOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
+      auto graphType = mlir::dyn_cast_or_null<graph::GraphType>(createOp.getType());
+      if (!graphType) return failure();
+      auto loc = createOp->getLoc();
+      EntryStorageHelper storageHelper(createOp, graphType.getMembers(), graphType.hasLock(), typeConverter);
+      mlir::Value g = rt::PropertyGraph::createTestGraph(rewriter, loc)({})[0];
+      rewriter.replaceOp(createOp, g);
+      return mlir::success();
+   }
+};
+
+class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
+   public:
+   using SubOpConversionPattern<graph::ScanGraphOp>::SubOpConversionPattern;
+
+   LogicalResult matchAndRewrite(graph::ScanGraphOp scanGraphOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
+      if (!mlir::isa<graph::GraphType>(scanGraphOp.getGraph().getType())) return failure();
+      auto graphType = mlir::cast<graph::GraphType>(scanGraphOp.getGraph().getType());
+      ColumnMapping mapping;
+      auto loc = scanGraphOp->getLoc();
+      void* it;
+      scanGraphOp.getElem().dump();
+      // if (mapping.getMapping(scanGraphOp->get))
+      // if (graphType.)
+      
+
+      return failure();
+      // ColumnMapping mapping;
+      // auto loc = scanRefsOp->getLoc();
+      // auto it = rt::Hashtable::createIterator(rewriter, loc)({adaptor.getState()})[0];
+      // auto kvPtrType = util::RefType::get(getContext(), getHtKVType(hashMapType, *typeConverter));
+      // implementBufferIteration(scanRefsOp->hasAttr("parallel"), it, getHtEntryType(hashMapType, *typeConverter), loc, rewriter, *typeConverter, scanRefsOp.getOperation(), [&](SubOpRewriter& rewriter, mlir::Value ptr) {
+      //    auto kvPtr = rewriter.create<util::TupleElementPtrOp>(loc, kvPtrType, ptr, 2);
+      //    mapping.define(scanRefsOp.getRef(), kvPtr);
+      //    rewriter.replaceTupleStream(scanRefsOp, mapping);
+      // });
+      // return success();
+   }
+};
+
 }; // namespace
 namespace {
 
@@ -3948,6 +3996,9 @@ void handleExecutionStepCPU(subop::ExecutionStepOp step, subop::ExecutionGroupOp
    rewriter.insertPattern<CreateBufferLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanRefsVectorLowering>(typeConverter, ctxt);
    rewriter.insertPattern<MaterializeVectorLowering>(typeConverter, ctxt);
+   //Graph
+   rewriter.insertPattern<CreateGraphLowering>(typeConverter, ctxt);
+   rewriter.insertPattern<ScanGraphLowering>(typeConverter, ctxt);
 
    //Hashmap
    rewriter.insertPattern<CreateHashMapLowering>(typeConverter, ctxt);
@@ -4168,6 +4219,16 @@ void SubOpToControlFlowLoweringPass::runOnOperation() {
          return util::RefType::get(t.getContext(), getHashMultiMapEntryType(hashMultiMapType, typeConverter));
       }
       return mlir::TupleType::get(t.getContext(), {util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8)), mlir::IndexType::get(t.getContext())});
+   });
+   //Graph
+   typeConverter.addConversion([&](graph::GraphType t) -> Type {
+      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+   });
+   typeConverter.addConversion([&](graph::EdgeSetType t) -> Type {
+      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+   });
+   typeConverter.addConversion([&](graph::NodeSetType t) -> Type {
+      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
    });
 
    //basic tuple stream manipulation
