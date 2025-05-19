@@ -37,9 +37,13 @@ class Graph_Type<string name, string typeMnemonic, list<Trait> traits = []> : Ty
 
 def NodeSetIterator : Graph_Type<"NodeSetIterator", "node_set_iterator"> {
     let summary = "node set iterator";
+    let parameters = (ins "mlir::ArrayAttr":$strategy);
+    let assemblyFormat = "`<` $strategy `>`";
 }
 def EdgeSetIterator : Graph_Type<"EdgeSetIterator", "edge_set_iterator"> {
     let summary = "edge set iterator";
+    let parameters = (ins "mlir::ArrayAttr":$strategy);
+    let assemblyFormat = "`<` $strategy `>`";
 }
 
 def NodeSet : Graph_Type<"NodeSet", "node_set", [State]> {
