@@ -99,15 +99,17 @@ void mapResults(mlir::IRMapping& mapping, mlir::Operation* from, mlir::Operation
 
 void graph::ScanGraphOp::updateStateType(subop::SubOpStateUsageTransformer& transformer, mlir::Value state, mlir::Type newType) {
    if (state == getGraph() && newType != state.getType()) {
-      auto newRefType = transformer.getNewRefType(this->getOperation(), getElem().getColumn().type);
-      setElemAttr(transformer.createReplacementColumn(getElemAttr(), newRefType));
+      auto newNodeSetType = transformer.getNewRefType(this->getOperation(), getNodeSet().getColumn().type);
+      auto newEdgeSetType = transformer.getNewRefType(this->getOperation(), getEdgeSet().getColumn().type);
+      setNodeSetAttr(transformer.createReplacementColumn(getNodeSetAttr(), newNodeSetType));
+      setEdgeSetAttr(transformer.createReplacementColumn(getEdgeSetAttr(), newEdgeSetType));
    }
 }
 void graph::ScanGraphOp::replaceColumns(subop::SubOpStateUsageTransformer& transformer, tuples::Column* oldColumn, tuples::Column* newColumn) {
    assert(false && "should not happen");
 }
 mlir::Operation* graph::ScanGraphOp::cloneSubOp(mlir::OpBuilder& builder, mlir::IRMapping& mapping, subop::ColumnMapping& columnMapping) {
-   auto newOp = builder.create<ScanNodeSetOp>(this->getLoc(), mapping.lookupOrDefault(getGraph()), columnMapping.clone(getElem()));
+   auto newOp = builder.create<ScanGraphOp>(this->getLoc(), mapping.lookupOrDefault(getGraph()), columnMapping.clone(getNodeSet()), columnMapping.clone(getEdgeSet()));
    mapResults(mapping, this->getOperation(), newOp.getOperation());
    
    return newOp;
