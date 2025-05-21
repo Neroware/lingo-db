@@ -115,46 +115,6 @@ void PropertyGraph::destroy(PropertyGraph* graph) {
     delete graph;
 }
 
-void NodeSetIterator::iterate(NodeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, node_id_t)) {
-    PropertyGraph* graph = iterator->getPropertyGraph();
-    while (iterator->isValid()) {
-        forEachChunk(graph, **iterator);
-        iterator->next();
-    }
-}
-void NodeSetIterator::destroy(NodeSetIterator* iterator) {
-    free(iterator);
-}
-PropertyGraph* NodeSetIterator::iteratorGetPropertyGraph(NodeSetIterator* iterator) {
-    return iterator->getPropertyGraph();
-}
-bool NodeSetIterator::isIteratorValid(NodeSetIterator* iterator) {
-    return iterator->isValid();
-}
-void NodeSetIterator::iteratorNext(NodeSetIterator* iterator) {
-    iterator->next();
-}
-
-void EdgeSetIterator::iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t)) {
-    PropertyGraph* graph = iterator->getPropertyGraph();
-    while (iterator->isValid()) {
-        forEachChunk(graph, **iterator);
-        iterator->next();
-    }
-}
-void EdgeSetIterator::destroy(EdgeSetIterator* iterator) {
-    free(iterator);
-}
-PropertyGraph* EdgeSetIterator::iteratorGetPropertyGraph(EdgeSetIterator* iterator) {
-    return iterator->getPropertyGraph();
-}
-bool EdgeSetIterator::isIteratorValid(EdgeSetIterator* iterator) {
-    return iterator->isValid();
-}
-void EdgeSetIterator::iteratorNext(EdgeSetIterator* iterator) {
-    iterator->next();
-}
-
 struct PropertyGraph::AllNodesIterator : NodeSetIterator {
     PropertyGraph* graph;
     node_id_t node;
@@ -177,8 +137,8 @@ struct PropertyGraph::AllNodesIterator : NodeSetIterator {
         return graph;
     }
 };
-NodeSetIterator* PropertyGraph::createNodeSetIterator() {
-    return new AllNodesIterator(this);
+NodeSet* PropertyGraph::createNodeSet() {
+    return new PropertyGraphNodeSet(this);
 }
 
 struct PropertyGraph::AllEdgesIterator : EdgeSetIterator {
@@ -203,8 +163,8 @@ struct PropertyGraph::AllEdgesIterator : EdgeSetIterator {
         return graph;
     }
 };
-EdgeSetIterator* PropertyGraph::createEdgeSetIterator() {
-    return new AllEdgesIterator(this);
+EdgeSet* PropertyGraph::createEdgeSet() {
+    return new PropertyGraphEdgeSet(this);
 }
 
 struct PropertyGraph::LinkedRelationshipsIterator : EdgeSetIterator {
@@ -249,14 +209,28 @@ struct PropertyGraph::LinkedRelationshipsIterator : EdgeSetIterator {
         return true;
     }
 };
-EdgeSetIterator* PropertyGraph::createConnectedEdgeSetIterator(node_id_t node) {
-    return new LinkedRelationshipsIterator(this, node, LinkedRelationshipsIterator::Mode::All);
+EdgeSet* PropertyGraph::createConnectedEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::All);
 }
-EdgeSetIterator* PropertyGraph::createIncomingEdgeSetIterator(node_id_t node) {
-    return new LinkedRelationshipsIterator(this, node, LinkedRelationshipsIterator::Mode::Incoming);
+EdgeSet* PropertyGraph::createIncomingEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::Incoming);
 }
-EdgeSetIterator* PropertyGraph::createOutgoingEdgeSetIterator(node_id_t node) {
-    return new LinkedRelationshipsIterator(this, node, LinkedRelationshipsIterator::Mode::Outgoing);
+EdgeSet* PropertyGraph::createOutgoingEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::Outgoing);
+}
+
+NodeSetIterator* PropertyGraphNodeSet::createIterator() {
+    return new PropertyGraph::AllNodesIterator(graph);
+}
+EdgeSetIterator* PropertyGraphEdgeSet::createIterator() {
+    return new PropertyGraph::AllEdgesIterator(graph);
+}
+EdgeSetIterator* PropertyGraphLinkedRelationshipsSet::createIterator() {
+    return new PropertyGraph::LinkedRelationshipsIterator(
+        graph, node, (PropertyGraph::LinkedRelationshipsIterator::Mode) mode);
 }
 
 } // lingodb::runtime::graph

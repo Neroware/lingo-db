@@ -2,41 +2,13 @@
 #define LINGODB_RUNTIME_GRAPH_PROPERTYGRAPH_H
 
 #include "lingodb/runtime/helpers.h"
+#include "lingodb/runtime/Graph/GraphSet.h"
 
 namespace lingodb::runtime {
 typedef int64_t node_id_t;
 typedef int64_t relationship_id_t;
 // Implementation of a native property graph following Graph Databases, 2nd Edition by Ian Robinson, Jim Webber & Emil Eifrem
 // See: https://www.oreilly.com/library/view/graph-databases-2nd/9781491930885/ (Figure 6-4)
-class PropertyGraph;
-struct NodeSetIterator {
-    virtual bool isValid() = 0;
-    virtual void next() = 0;
-    virtual node_id_t operator*() = 0;
-
-    virtual PropertyGraph* getPropertyGraph() = 0;
-    static bool isIteratorValid(NodeSetIterator* iterator);
-    static void iteratorNext(NodeSetIterator* iterator);
-
-    static PropertyGraph* iteratorGetPropertyGraph(NodeSetIterator* iterator);
-    static void destroy(NodeSetIterator* iterator);
-    static void iterate(NodeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, node_id_t));
-    virtual ~NodeSetIterator() {}
-}; // NodeSetIterator
-struct EdgeSetIterator {
-    virtual bool isValid() = 0;
-    virtual void next() = 0;
-    virtual relationship_id_t operator*() = 0;
-
-    virtual PropertyGraph* getPropertyGraph() = 0;
-    static bool isIteratorValid(EdgeSetIterator* iterator);
-    static void iteratorNext(EdgeSetIterator* iterator);
-
-    static PropertyGraph* iteratorGetPropertyGraph(EdgeSetIterator* iterator);
-    static void destroy(EdgeSetIterator* iterator);
-    static void iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t));
-    virtual ~EdgeSetIterator() {}
-}; // EdgeSetIterator
 class PropertyGraph {
     private:
     struct NodeEntry {
@@ -69,11 +41,11 @@ class PropertyGraph {
     NodeEntry* getNode(node_id_t node) const;
     RelationshipEntry* getRelationship(relationship_id_t rel) const;
 
+    public:
     struct AllNodesIterator;
     struct AllEdgesIterator;
     struct LinkedRelationshipsIterator;
 
-    public:
     node_id_t addNode();
     relationship_id_t addRelationship(node_id_t from, node_id_t to);
 
@@ -89,13 +61,32 @@ class PropertyGraph {
     static PropertyGraph* createTestGraph();
     static void destroy(PropertyGraph*);
 
-    NodeSetIterator* createNodeSetIterator();
-    EdgeSetIterator* createEdgeSetIterator();
-    EdgeSetIterator* createConnectedEdgeSetIterator(node_id_t node);
-    EdgeSetIterator* createIncomingEdgeSetIterator(node_id_t node);
-    EdgeSetIterator* createOutgoingEdgeSetIterator(node_id_t node);
+    NodeSet* createNodeSet();
+    EdgeSet* createEdgeSet();
+    EdgeSet* createConnectedEdgeSet(node_id_t node);
+    EdgeSet* createIncomingEdgeSet(node_id_t node);
+    EdgeSet* createOutgoingEdgeSet(node_id_t node);
 
 }; // PropertyGraph
+struct PropertyGraphNodeSet : NodeSet {
+    PropertyGraph* graph;
+    PropertyGraphNodeSet(PropertyGraph* graph) : graph(graph) {}
+    NodeSetIterator* createIterator() override;
+}; // PropertyGraphNodeSet
+struct PropertyGraphEdgeSet : EdgeSet {
+    PropertyGraph* graph;
+    PropertyGraphEdgeSet(PropertyGraph* graph) : graph(graph) {}
+    EdgeSetIterator* createIterator() override;
+}; // PropertyGraphEdgeSet
+struct PropertyGraphLinkedRelationshipsSet : EdgeSet {
+    enum Mode { All, Incoming, Outgoing };
+    PropertyGraph* graph;
+    node_id_t node;
+    Mode mode;
+    PropertyGraphLinkedRelationshipsSet(PropertyGraph* graph, node_id_t node, Mode mode) 
+        : graph(graph), node(node), mode(mode) {}
+    EdgeSetIterator* createIterator() override;
+}; // PropertyGraphLinkedRelationshipsSet
 } // lingodb::runtime::graph
 
 #endif // LINGODB_RUNTIME_GRAPH_PROPERTYGRAPH_H

@@ -1,0 +1,52 @@
+#include "lingodb/runtime/Graph/GraphSet.h"
+
+namespace lingodb::runtime {
+
+void NodeSet::destroy(NodeSet* set) {
+    free(set);
+} 
+void EdgeSet::destroy(EdgeSet* set) {
+    free(set);
+} 
+
+void NodeSetIterator::iterate(NodeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, node_id_t)) {
+    PropertyGraph* graph = iterator->getPropertyGraph();
+    while (iterator->isValid()) {
+        forEachChunk(graph, **iterator);
+        iterator->next();
+    }
+}
+void NodeSetIterator::destroy(NodeSetIterator* iterator) {
+    free(iterator);
+}
+PropertyGraph* NodeSetIterator::iteratorGetPropertyGraph(NodeSetIterator* iterator) {
+    return iterator->getPropertyGraph();
+}
+bool NodeSetIterator::isIteratorValid(NodeSetIterator* iterator) {
+    return iterator->isValid();
+}
+void NodeSetIterator::iteratorNext(NodeSetIterator* iterator) {
+    iterator->next();
+}
+    
+void EdgeSetIterator::iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t)) {
+    PropertyGraph* graph = iterator->getPropertyGraph();
+    while (iterator->isValid()) {
+        forEachChunk(graph, **iterator);
+        iterator->next();
+    }
+}
+void EdgeSetIterator::destroy(EdgeSetIterator* iterator) {
+    free(iterator);
+}
+PropertyGraph* EdgeSetIterator::iteratorGetPropertyGraph(EdgeSetIterator* iterator) {
+    return iterator->getPropertyGraph();
+}
+bool EdgeSetIterator::isIteratorValid(EdgeSetIterator* iterator) {
+    return iterator->isValid();
+}
+void EdgeSetIterator::iteratorNext(EdgeSetIterator* iterator) {
+    iterator->next();
+}
+
+} // lingodb::runtime::graph

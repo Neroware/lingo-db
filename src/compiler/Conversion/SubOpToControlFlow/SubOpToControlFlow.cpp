@@ -776,7 +776,6 @@ class SubOpTupleStreamConsumerConversionPattern : public AbstractSubOpConversion
    virtual LogicalResult matchAndRewrite(OpT op, OpAdaptor adaptor, SubOpRewriter& rewriter, ColumnMapping& mapping) const = 0;
    virtual ~SubOpTupleStreamConsumerConversionPattern() {};
 };
-
 static mlir::TupleType getHtKVType(subop::HashMapType t, mlir::TypeConverter& converter) {
    auto keyTupleType = EntryStorageHelper(nullptr, t.getKeyMembers(), false, &converter).getStorageType();
    auto valTupleType = EntryStorageHelper(nullptr, t.getValueMembers(), t.getWithLock(), &converter).getStorageType();
@@ -814,6 +813,12 @@ static mlir::TupleType getHashMultiMapValueType(subop::HashMultiMapType t, mlir:
    auto i8PtrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    return mlir::TupleType::get(t.getContext(), {i8PtrType, valTupleType});
 }
+//Graph
+// static mlir::TupleType getGraphType(graph::GraphType t, mlir::TypeConverter& converter) {
+//    auto nodeSetType = EntryStorageHelper(nullptr, t.getNodeMembers(), false, &converter).getStorageType();
+//    auto edgeSetType = EntryStorageHelper(nullptr, t.getEdgeMembers(), false, &converter).getStorageType();
+//    return mlir::cast<mlir::TupleType>(converter.convertType(mlir::TupleType::get(t.getContext(), {nodeSetType, edgeSetType})));
+// }
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -3947,12 +3952,20 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
       auto graphType = mlir::cast<graph::GraphType>(scanGraphOp.getGraph().getType());
       ColumnMapping mapping;
       auto loc = scanGraphOp->getLoc();
-      void* it;
-      scanGraphOp.getElem().dump();
-      // if (mapping.getMapping(scanGraphOp->get))
-      // if (graphType.)
+      // auto vx = rt::PropertyGraph::createNodeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
+      // auto ex = rt::PropertyGraph::createEdgeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
+      // mapping.define(scanGraphOp.getElem(), );
       
+      //auto column = scanGraphOp.getElem().getColumn();
 
+      // if (mlir::isa<graph::NodeSetType>(column.type)) {
+      //    set = rt::PropertyGraph::createNodeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
+
+      // }
+      // else if (mlir::isa<graph::EdgeSetType>(column.type)) {
+      //    set = rt::PropertyGraph::createEdgeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
+      // }
+      
       return failure();
       // ColumnMapping mapping;
       // auto loc = scanRefsOp->getLoc();
