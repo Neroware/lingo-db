@@ -712,7 +712,7 @@ class SubOpRewriter {
    }
    void insertAndRewrite(mlir::Operation* op) {
       builder.insert(op);
-      if (op->getDialect()->getNamespace() == "subop") {
+      if (op->getDialect()->getNamespace() == "subop" || op->getDialect()->getNamespace() == "graph") {
          rewrite(op);
       }
    }
@@ -814,11 +814,6 @@ static mlir::TupleType getHashMultiMapValueType(subop::HashMultiMapType t, mlir:
    return mlir::TupleType::get(t.getContext(), {i8PtrType, valTupleType});
 }
 //Graph
-// static mlir::TupleType getGraphType(graph::GraphType t, mlir::TypeConverter& converter) {
-//    auto nodeSetType = EntryStorageHelper(nullptr, t.getNodeMembers(), false, &converter).getStorageType();
-//    auto edgeSetType = EntryStorageHelper(nullptr, t.getEdgeMembers(), false, &converter).getStorageType();
-//    return mlir::cast<mlir::TupleType>(converter.convertType(mlir::TupleType::get(t.getContext(), {nodeSetType, edgeSetType})));
-// }
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -3949,24 +3944,21 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
 
    LogicalResult matchAndRewrite(graph::ScanGraphOp scanGraphOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
       if (!mlir::isa<graph::GraphType>(scanGraphOp.getGraph().getType())) return failure();
-      auto graphType = mlir::cast<graph::GraphType>(scanGraphOp.getGraph().getType());
       ColumnMapping mapping;
       auto loc = scanGraphOp->getLoc();
-      // auto vx = rt::PropertyGraph::createNodeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
-      // auto ex = rt::PropertyGraph::createEdgeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
-      // mapping.define(scanGraphOp.getElem(), );
-      
-      //auto column = scanGraphOp.getElem().getColumn();
+      auto vxPtr = rt::PropertyGraph::createNodeSet(rewriter, loc)({adaptor.getGraph()})[0];
+      auto exPtr = rt::PropertyGraph::createEdgeSet(rewriter, loc)({adaptor.getGraph()})[0];
+      mapping.define(scanGraphOp.getNodeSet(), vxPtr);
+      mapping.define(scanGraphOp.getEdgeSet(), exPtr);
+      rewriter.replaceTupleStream(scanGraphOp, mapping);
+      return success();
+   }
+};
 
-      // if (mlir::isa<graph::NodeSetType>(column.type)) {
-      //    set = rt::PropertyGraph::createNodeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
-
-      // }
-      // else if (mlir::isa<graph::EdgeSetType>(column.type)) {
-      //    set = rt::PropertyGraph::createEdgeSetIterator(rewriter, loc)({adaptor.getGraph()})[0];
-      // }
-      
-      return failure();
+class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> {
+   public:
+   using SubOpConversionPattern<graph::ScanNodeSetOp>::SubOpConversionPattern;
+   LogicalResult matchAndRewrite(graph::ScanNodeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
       // ColumnMapping mapping;
       // auto loc = scanRefsOp->getLoc();
       // auto it = rt::Hashtable::createIterator(rewriter, loc)({adaptor.getState()})[0];
@@ -3977,6 +3969,7 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
       //    rewriter.replaceTupleStream(scanRefsOp, mapping);
       // });
       // return success();
+      return failure();
    }
 };
 
@@ -4012,6 +4005,7 @@ void handleExecutionStepCPU(subop::ExecutionStepOp step, subop::ExecutionGroupOp
    //Graph
    rewriter.insertPattern<CreateGraphLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanGraphLowering>(typeConverter, ctxt);
+   rewriter.insertPattern<ScanNodeSetLowering>(typeConverter, ctxt);
 
    //Hashmap
    rewriter.insertPattern<CreateHashMapLowering>(typeConverter, ctxt);

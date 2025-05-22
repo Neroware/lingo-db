@@ -61,6 +61,10 @@ class PropertyGraph {
     static PropertyGraph* createTestGraph();
     static void destroy(PropertyGraph*);
 
+    // TODO Store node/edge set states as members in PropertyGraph and free them when graph is destroyed
+    // The reason is that a graph is a state containing node/edge sets, which themselves are states!
+    // Return pointer to member in PropertyGraph
+
     NodeSet* createNodeSet();
     EdgeSet* createEdgeSet();
     EdgeSet* createConnectedEdgeSet(node_id_t node);

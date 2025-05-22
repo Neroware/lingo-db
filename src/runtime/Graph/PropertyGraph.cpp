@@ -234,5 +234,3 @@ EdgeSetIterator* PropertyGraphLinkedRelationshipsSet::createIterator() {
 }
 
 } // lingodb::runtime::graph
-
-// TODO Property Graph implementation
