@@ -30,6 +30,7 @@
 #include "lingodb/compiler/runtime/SimpleState.h"
 #include "lingodb/compiler/runtime/ThreadLocal.h"
 #include "lingodb/compiler/runtime/Tracing.h"
+#include "lingodb/compiler/runtime/Graph/GraphSets.h"
 #include "lingodb/compiler/runtime/Graph/PropertyGraph.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -813,6 +814,19 @@ static mlir::TupleType getHashMultiMapValueType(subop::HashMultiMapType t, mlir:
    auto i8PtrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    return mlir::TupleType::get(t.getContext(), {i8PtrType, valTupleType});
 }
+//Graph
+static mlir::TupleType getNodeEntryType(graph::NodeRefType t, mlir::TypeConverter& converter) {
+   auto i1Type = IntegerType::get(t.getContext(), 1);
+   auto i64Type = IntegerType::get(t.getContext(), 64);
+   auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
+   return mlir::TupleType::get(t.getContext(), {i1Type, i64Type, propertyTupleType});
+}
+static mlir::TupleType getEdgeEntryType(graph::EdgeRefType t, mlir::TypeConverter& converter) {
+   auto i1Type = IntegerType::get(t.getContext(), 1);
+   auto i64Type = IntegerType::get(t.getContext(), 64);
+   auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
+   return mlir::TupleType::get(t.getContext(), {i1Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
+}
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -1250,14 +1264,6 @@ class CreateBufferLowering : public SubOpConversionPattern<subop::GenericCreateO
       return mlir::success();
    }
 };
-
-//Graph
-void implementGraphSetIterationRuntime(bool parallel, mlir::Value graphSetIterator, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
-   assert(false && "not implemented!");
-}
-void implementGraphSetIteration(bool parallel, mlir::Value graphSetIterator, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
-   implementGraphSetIterationRuntime(parallel, graphSetIterator, loc, rewriter, typeConverter, op, fn);
-}
 
 void implementBufferIterationRuntime(bool parallel, mlir::Value bufferIterator, mlir::Type entryType, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
    auto* ctxt = rewriter.getContext();
@@ -3967,18 +3973,25 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
    using SubOpConversionPattern<graph::ScanNodeSetOp>::SubOpConversionPattern;
    LogicalResult matchAndRewrite(graph::ScanNodeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
       if (!mlir::isa<graph::NodeSetType>(scanRefsOp.getNodeSet().getType())) return failure();
-
-      // ColumnMapping mapping;
-      // auto loc = scanRefsOp->getLoc();
-      // auto it = rt::Hashtable::createIterator(rewriter, loc)({adaptor.getState()})[0];
-      // auto kvPtrType = util::RefType::get(getContext(), getHtKVType(hashMapType, *typeConverter));
-      // implementBufferIteration(scanRefsOp->hasAttr("parallel"), it, getHtEntryType(hashMapType, *typeConverter), loc, rewriter, *typeConverter, scanRefsOp.getOperation(), [&](SubOpRewriter& rewriter, mlir::Value ptr) {
-      //    auto kvPtr = rewriter.create<util::TupleElementPtrOp>(loc, kvPtrType, ptr, 2);
-      //    mapping.define(scanRefsOp.getRef(), kvPtr);
-      //    rewriter.replaceTupleStream(scanRefsOp, mapping);
-      // });
-      // return success();
-      return failure();
+      auto nodeRefColType = scanRefsOp.getProducedReference().getColumn().type;
+      auto nodeRefType = mlir::dyn_cast_or_null<graph::NodeRefType>(nodeRefColType);
+      if (!nodeRefType) return failure();
+      ColumnMapping mapping;
+      auto loc = scanRefsOp->getLoc();
+      auto it = rt::GraphNodeSet::nodeSetCreateIterator(rewriter, loc)({adaptor.getNodeSet()})[0];
+      auto nodeEntryType = getNodeEntryType(nodeRefType, *typeConverter);
+      implementBufferIteration(scanRefsOp->hasAttr("parallel"), it, nodeEntryType, loc, rewriter, *typeConverter, scanRefsOp.getOperation(), [&](SubOpRewriter& rewriter, mlir::Value ptr) {
+         auto inUseRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(rewriter.getContext(), rewriter.getI1Type()), ptr, 0);
+         auto inUse = rewriter.create<util::LoadOp>(loc, inUseRef);
+         auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, inUse);
+         ifOp.ensureTerminator(ifOp.getThenRegion(), rewriter, scanRefsOp->getLoc());
+         rewriter.atStartOf(&ifOp.getThenRegion().front(), [&](SubOpRewriter& rewriter) {
+            mapping.define(scanRefsOp.getRef(), ptr);
+            rewriter.replaceTupleStream(scanRefsOp, mapping);
+         });
+      });
+      it.getOwner()->getParentOfType<mlir::ModuleOp>()->dump();
+      return success();
    }
 };
 
@@ -4244,6 +4257,12 @@ void SubOpToControlFlowLoweringPass::runOnOperation() {
       return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
    });
    typeConverter.addConversion([&](graph::NodeSetType t) -> Type {
+      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+   });
+   typeConverter.addConversion([&](graph::NodeRefType t) -> Type {
+      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+   });
+   typeConverter.addConversion([&](graph::EdgeRefType t) -> Type {
       return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
    });
 

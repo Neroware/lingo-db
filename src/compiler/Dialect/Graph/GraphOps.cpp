@@ -117,15 +117,15 @@ mlir::Operation* graph::ScanGraphOp::cloneSubOp(mlir::OpBuilder& builder, mlir::
 
 void graph::ScanNodeSetOp::updateStateType(subop::SubOpStateUsageTransformer& transformer, mlir::Value state, mlir::Type newType) {
    if (state == getNodeSet() && newType != state.getType()) {
-      auto newRefType = transformer.getNewRefType(this->getOperation(), getElem().getColumn().type);
-      setElemAttr(transformer.createReplacementColumn(getElemAttr(), newRefType));
+      auto newRefType = transformer.getNewRefType(this->getOperation(), getRef().getColumn().type);
+      setRefAttr(transformer.createReplacementColumn(getRefAttr(), newRefType));
    }
 }
 void graph::ScanNodeSetOp::replaceColumns(subop::SubOpStateUsageTransformer& transformer, tuples::Column* oldColumn, tuples::Column* newColumn) {
    assert(false && "should not happen");
 }
 mlir::Operation* graph::ScanNodeSetOp::cloneSubOp(mlir::OpBuilder& builder, mlir::IRMapping& mapping, subop::ColumnMapping& columnMapping) {
-   auto newOp = builder.create<ScanNodeSetOp>(this->getLoc(), mapping.lookupOrDefault(getNodeSet()), columnMapping.clone(getElem()));
+   auto newOp = builder.create<ScanNodeSetOp>(this->getLoc(), mapping.lookupOrDefault(getNodeSet()), columnMapping.clone(getRef()));
    mapResults(mapping, this->getOperation(), newOp.getOperation());
 
    return newOp;
@@ -133,15 +133,15 @@ mlir::Operation* graph::ScanNodeSetOp::cloneSubOp(mlir::OpBuilder& builder, mlir
 
 void graph::ScanEdgeSetOp::updateStateType(subop::SubOpStateUsageTransformer& transformer, mlir::Value state, mlir::Type newType) {
    if (state == getEdgeSet() && newType != state.getType()) {
-      auto newRefType = transformer.getNewRefType(this->getOperation(), getElem().getColumn().type);
-      setElemAttr(transformer.createReplacementColumn(getElemAttr(), newRefType));
+      auto newRefType = transformer.getNewRefType(this->getOperation(), getRef().getColumn().type);
+      setRefAttr(transformer.createReplacementColumn(getRefAttr(), newRefType));
    }
 }
 void graph::ScanEdgeSetOp::replaceColumns(subop::SubOpStateUsageTransformer& transformer, tuples::Column* oldColumn, tuples::Column* newColumn) {
    assert(false && "should not happen");
 }
 mlir::Operation* graph::ScanEdgeSetOp::cloneSubOp(mlir::OpBuilder& builder, mlir::IRMapping& mapping, subop::ColumnMapping& columnMapping) {
-   auto newOp = builder.create<ScanNodeSetOp>(this->getLoc(), mapping.lookupOrDefault(getEdgeSet()), columnMapping.clone(getElem()));
+   auto newOp = builder.create<ScanNodeSetOp>(this->getLoc(), mapping.lookupOrDefault(getEdgeSet()), columnMapping.clone(getRef()));
    mapResults(mapping, this->getOperation(), newOp.getOperation());
 
    return newOp;
