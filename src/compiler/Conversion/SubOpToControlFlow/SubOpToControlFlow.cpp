@@ -813,7 +813,6 @@ static mlir::TupleType getHashMultiMapValueType(subop::HashMultiMapType t, mlir:
    auto i8PtrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    return mlir::TupleType::get(t.getContext(), {i8PtrType, valTupleType});
 }
-//Graph
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -1251,6 +1250,14 @@ class CreateBufferLowering : public SubOpConversionPattern<subop::GenericCreateO
       return mlir::success();
    }
 };
+
+//Graph
+void implementGraphSetIterationRuntime(bool parallel, mlir::Value graphSetIterator, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
+   assert(false && "not implemented!");
+}
+void implementGraphSetIteration(bool parallel, mlir::Value graphSetIterator, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
+   implementGraphSetIterationRuntime(parallel, graphSetIterator, loc, rewriter, typeConverter, op, fn);
+}
 
 void implementBufferIterationRuntime(bool parallel, mlir::Value bufferIterator, mlir::Type entryType, mlir::Location loc, SubOpRewriter& rewriter, mlir::TypeConverter& typeConverter, mlir::Operation* op, std::function<void(SubOpRewriter& rewriter, mlir::Value)> fn) {
    auto* ctxt = rewriter.getContext();
@@ -3959,6 +3966,8 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
    public:
    using SubOpConversionPattern<graph::ScanNodeSetOp>::SubOpConversionPattern;
    LogicalResult matchAndRewrite(graph::ScanNodeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
+      if (!mlir::isa<graph::NodeSetType>(scanRefsOp.getNodeSet().getType())) return failure();
+
       // ColumnMapping mapping;
       // auto loc = scanRefsOp->getLoc();
       // auto it = rt::Hashtable::createIterator(rewriter, loc)({adaptor.getState()})[0];

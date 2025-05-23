@@ -2,7 +2,7 @@
 #define LINGODB_RUNTIME_GRAPH_PROPERTYGRAPH_H
 
 #include "lingodb/runtime/helpers.h"
-#include "lingodb/runtime/Graph/GraphSet.h"
+#include "lingodb/runtime/Graph/GraphSet.h" // TODO get rid of the header and move iterator implementations into MLIR!
 
 namespace lingodb::runtime {
 typedef int64_t node_id_t;
@@ -61,9 +61,8 @@ class PropertyGraph {
     static PropertyGraph* createTestGraph();
     static void destroy(PropertyGraph*);
 
-    // TODO Store node/edge set states as members in PropertyGraph and free them when graph is destroyed
-    // The reason is that a graph is a state containing node/edge sets, which themselves are states!
-    // Return pointer to member in PropertyGraph
+    // TODO I don't think we need NodeSet and EdgeSet types. What we need is a buffer iterator and
+    // an MLIR-implementation of the iterators in PropertygRaph.cpp
 
     NodeSet* createNodeSet();
     EdgeSet* createEdgeSet();
