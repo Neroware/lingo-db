@@ -115,11 +115,43 @@ void PropertyGraph::destroy(PropertyGraph* graph) {
     delete graph;
 }
 
+class PropertyGraphNodeSetIterator : public BufferIterator {
+    GraphNodeSet& nodeSet;
+    bool valid;
+
+    public:
+    PropertyGraphNodeSetIterator(GraphNodeSet& nodeSet) 
+        : nodeSet(nodeSet), valid(true) {}
+    bool isValid() override { return valid; }
+    void next() override { valid = false; }
+    Buffer getCurrentBuffer() override { return nodeSet.getGraph()->getNodeBuffer(); }
+    void iterateEfficient(bool parallel, void (*forEachChunk)(Buffer, void*), void* contextPtr) override {
+        // TODO No parallelism in PropertyGraph iterators yet...
+        auto buffer = getCurrentBuffer();
+        forEachChunk(buffer, contextPtr);
+    }
+}; // PropertyGraphNodeSetIterator
+class PropertyGraphEdgeSetIterator : public BufferIterator {
+    GraphEdgeSet& edgeSet;
+    bool valid;
+
+    public:
+    PropertyGraphEdgeSetIterator(GraphEdgeSet& edgeSet) 
+        : edgeSet(edgeSet), valid(true) {}
+    bool isValid() override { return valid; }
+    void next() override { valid = false; }
+    Buffer getCurrentBuffer() override { return edgeSet.getGraph()->getRelationshipBuffer(); }
+    void iterateEfficient(bool parallel, void (*forEachChunk)(Buffer, void*), void* contextPtr) override {
+        // TODO No parallelism in PropertyGraph iterators yet...
+        auto buffer = getCurrentBuffer();
+        forEachChunk(buffer, contextPtr);
+    }
+}; // PropertyGraphEdgeSetIterator
 BufferIterator* PropertyGraph::PropertyGraphNodeSet::createIterator() {
-    return nullptr; // TODO
+    return new PropertyGraphNodeSetIterator(*this);
 }
 BufferIterator* PropertyGraph::PropertyGraphRelationshipSet::createIterator() {
-    return nullptr; // TODO
+    return new PropertyGraphEdgeSetIterator(*this);
 }
 
 } // lingodb::runtime::graph

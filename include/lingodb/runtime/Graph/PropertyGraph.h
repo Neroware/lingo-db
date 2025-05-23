@@ -89,6 +89,9 @@ class PropertyGraph {
     GraphNodeLinkedEdgesSet* getNodeIncomingEdgeSet() { return &nodeIncomingSet; }
     GraphNodeLinkedEdgesSet* getNodeOutgoingEdgeSet() { return &nodeOutgoingSet; }
 
+    Buffer getNodeBuffer() { return Buffer{(size_t) nodeBufferSize, (uint8_t*) nodes.ptr }; }
+    Buffer getRelationshipBuffer() { return Buffer{(size_t) relBufferSize, (uint8_t*) relationships.ptr }; }
+
 }; // PropertyGraphLinkedRelationshipsSet
 } // lingodb::runtime::graph
 
