@@ -34,7 +34,6 @@ add_library(runtime OBJECT
         LingoDBHashIndex.cpp
         Session.cpp
         storage/LingoDBTable.cpp
-        Graph/GraphSet.cpp
         Graph/PropertyGraph.cpp
 )
 set(COMPILE_DEFS "")

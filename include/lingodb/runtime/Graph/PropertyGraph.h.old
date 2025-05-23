@@ -1,9 +1,12 @@
 #ifndef LINGODB_RUNTIME_GRAPH_PROPERTYGRAPH_H
 #define LINGODB_RUNTIME_GRAPH_PROPERTYGRAPH_H
 
-#include "lingodb/runtime/Graph/GraphSets.h"
+#include "lingodb/runtime/helpers.h"
+#include "lingodb/runtime/Graph/GraphSet.h" // TODO get rid of the header and move iterator implementations into MLIR!
 
 namespace lingodb::runtime {
+typedef int64_t node_id_t;
+typedef int64_t relationship_id_t;
 // Implementation of a native property graph following Graph Databases, 2nd Edition by Ian Robinson, Jim Webber & Emil Eifrem
 // See: https://www.oreilly.com/library/view/graph-databases-2nd/9781491930885/ (Figure 6-4)
 class PropertyGraph {
@@ -24,40 +27,11 @@ class PropertyGraph {
         relationship_id_t secondNextRelation;
         int64_t property; // TODO for now we only support a single edge property of type i64
     }; // RelationshipEntry
-    struct PropertyGraphNodeSet : GraphNodeSet {
-        PropertyGraph* graph;
-        PropertyGraphNodeSet(PropertyGraph* graph) : graph(graph) {}
-        PropertyGraph* getGraph() override { return graph; }
-        BufferIterator* createIterator() override;
-    }; // PropertyGraphNodeSet
-    struct PropertyGraphRelationshipSet : GraphEdgeSet {
-        PropertyGraph* graph;
-        PropertyGraphRelationshipSet(PropertyGraph* graph) : graph(graph) {}
-        PropertyGraph* getGraph() override { return graph; }
-        BufferIterator* createIterator() override;
-    }; // PropertyGraphRelationshipSet
-    struct PropertyGraphNodeLinkedRelationshipsSet : GraphNodeLinkedEdgesSet {
-        PropertyGraph* graph;
-        PropertyGraphNodeLinkedRelationshipsSet(PropertyGraph* graph, Mode mode) 
-            : GraphNodeLinkedEdgesSet(mode), graph(graph) {}
-        PropertyGraph* getGraph() override { return graph; }
-        int64_t getMode() override { return (int64_t) mode; }
-        void* getNodeRef(node_id_t node) override { return (void*) getGraph()->getNode(node); }
-    }; // PropertyGraphNodeLinkedRelationshipsSet
     runtime::LegacyFixedSizedBuffer<NodeEntry> nodes;
     runtime::LegacyFixedSizedBuffer<RelationshipEntry> relationships;
     std::vector<NodeEntry*> unusedNodeEntries;
     std::vector<RelationshipEntry*> unusedRelEntries;
-    PropertyGraphNodeSet nodeSet;
-    PropertyGraphRelationshipSet edgeSet;
-    PropertyGraphNodeLinkedRelationshipsSet nodeConnectionsSet;
-    PropertyGraphNodeLinkedRelationshipsSet nodeIncomingSet;
-    PropertyGraphNodeLinkedRelationshipsSet nodeOutgoingSet;
-    PropertyGraph(size_t maxNodeCapacity, size_t maxRelCapacity) 
-        : nodes(maxNodeCapacity), relationships(maxRelCapacity), nodeSet(this), edgeSet(this), 
-        nodeConnectionsSet(this, GraphNodeLinkedEdgesSet::All), 
-        nodeIncomingSet(this, GraphNodeLinkedEdgesSet::Incoming),
-        nodeOutgoingSet(this, GraphNodeLinkedEdgesSet::Outgoing) {}
+    PropertyGraph(size_t maxNodeCapacity, size_t maxRelCapacity) : nodes(maxNodeCapacity), relationships(maxRelCapacity) {}
 
     node_id_t nodeBufferSize = 0;
     relationship_id_t relBufferSize = 0;
@@ -68,6 +42,10 @@ class PropertyGraph {
     RelationshipEntry* getRelationship(relationship_id_t rel) const;
 
     public:
+    struct AllNodesIterator;
+    struct AllEdgesIterator;
+    struct LinkedRelationshipsIterator;
+
     node_id_t addNode();
     relationship_id_t addRelationship(node_id_t from, node_id_t to);
 
@@ -83,12 +61,34 @@ class PropertyGraph {
     static PropertyGraph* createTestGraph();
     static void destroy(PropertyGraph*);
 
-    GraphNodeSet* getNodeSet() { return &nodeSet; }
-    GraphEdgeSet* getEdgeSet() { return &edgeSet; };
-    GraphNodeLinkedEdgesSet* getNodeConnectedEdgeSet() { return &nodeConnectionsSet; }
-    GraphNodeLinkedEdgesSet* getNodeIncomingEdgeSet() { return &nodeIncomingSet; }
-    GraphNodeLinkedEdgesSet* getNodeOutgoingEdgeSet() { return &nodeOutgoingSet; }
+    // TODO I don't think we need NodeSet and EdgeSet types. What we need is a buffer iterator and
+    // an MLIR-implementation of the iterators in PropertygRaph.cpp
 
+    NodeSet* createNodeSet();
+    EdgeSet* createEdgeSet();
+    EdgeSet* createConnectedEdgeSet(node_id_t node);
+    EdgeSet* createIncomingEdgeSet(node_id_t node);
+    EdgeSet* createOutgoingEdgeSet(node_id_t node);
+
+}; // PropertyGraph
+struct PropertyGraphNodeSet : NodeSet {
+    PropertyGraph* graph;
+    PropertyGraphNodeSet(PropertyGraph* graph) : graph(graph) {}
+    NodeSetIterator* createIterator() override;
+}; // PropertyGraphNodeSet
+struct PropertyGraphEdgeSet : EdgeSet {
+    PropertyGraph* graph;
+    PropertyGraphEdgeSet(PropertyGraph* graph) : graph(graph) {}
+    EdgeSetIterator* createIterator() override;
+}; // PropertyGraphEdgeSet
+struct PropertyGraphLinkedRelationshipsSet : EdgeSet {
+    enum Mode { All, Incoming, Outgoing };
+    PropertyGraph* graph;
+    node_id_t node;
+    Mode mode;
+    PropertyGraphLinkedRelationshipsSet(PropertyGraph* graph, node_id_t node, Mode mode) 
+        : graph(graph), node(node), mode(mode) {}
+    EdgeSetIterator* createIterator() override;
 }; // PropertyGraphLinkedRelationshipsSet
 } // lingodb::runtime::graph
 

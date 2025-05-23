@@ -3953,8 +3953,8 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
       if (!mlir::isa<graph::GraphType>(scanGraphOp.getGraph().getType())) return failure();
       ColumnMapping mapping;
       auto loc = scanGraphOp->getLoc();
-      auto vxPtr = rt::PropertyGraph::createNodeSet(rewriter, loc)({adaptor.getGraph()})[0];
-      auto exPtr = rt::PropertyGraph::createEdgeSet(rewriter, loc)({adaptor.getGraph()})[0];
+      auto vxPtr = rt::PropertyGraph::getNodeSet(rewriter, loc)({adaptor.getGraph()})[0];
+      auto exPtr = rt::PropertyGraph::getEdgeSet(rewriter, loc)({adaptor.getGraph()})[0];
       mapping.define(scanGraphOp.getNodeSet(), vxPtr);
       mapping.define(scanGraphOp.getEdgeSet(), exPtr);
       rewriter.replaceTupleStream(scanGraphOp, mapping);

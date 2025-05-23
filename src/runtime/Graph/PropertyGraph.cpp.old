@@ -115,11 +115,122 @@ void PropertyGraph::destroy(PropertyGraph* graph) {
     delete graph;
 }
 
-BufferIterator* PropertyGraph::PropertyGraphNodeSet::createIterator() {
-    return nullptr; // TODO
+struct PropertyGraph::AllNodesIterator : NodeSetIterator {
+    PropertyGraph* graph;
+    node_id_t node;
+    AllNodesIterator(PropertyGraph* graph) : graph(graph), node(0) {}
+    bool isValid() override {
+        return node >= 0 && node < graph->nodeBufferSize && graph->getNode(node)->inUse;
+    }
+    void next() override {
+        if (!isValid())
+            return;
+        while (node < graph->nodeBufferSize) {
+            if (graph->getNode(node++)->inUse)
+                break;
+        }
+    }
+    node_id_t operator*() override {
+        return node;
+    }
+    PropertyGraph* getPropertyGraph() override {
+        return graph;
+    }
+};
+NodeSet* PropertyGraph::createNodeSet() {
+    return new PropertyGraphNodeSet(this);
 }
-BufferIterator* PropertyGraph::PropertyGraphRelationshipSet::createIterator() {
-    return nullptr; // TODO
+
+struct PropertyGraph::AllEdgesIterator : EdgeSetIterator {
+    PropertyGraph* graph;
+    relationship_id_t rel;
+    AllEdgesIterator(PropertyGraph* graph) : graph(graph), rel(0) {}
+    bool isValid() override {
+        return rel >= 0 && rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
+    }
+    void next() override {
+        if (!isValid())
+            return;
+        while (rel < graph->relBufferSize) {
+            if (graph->getRelationship(rel++)->inUse)
+                break;
+        }
+    }
+    relationship_id_t operator*() override {
+        return rel;
+    }
+    PropertyGraph* getPropertyGraph() override {
+        return graph;
+    }
+};
+EdgeSet* PropertyGraph::createEdgeSet() {
+    return new PropertyGraphEdgeSet(this);
+}
+
+struct PropertyGraph::LinkedRelationshipsIterator : EdgeSetIterator {
+    enum Mode { All, Incoming, Outgoing };
+    PropertyGraph* graph;
+    node_id_t node;
+    relationship_id_t rel;
+    Mode mode;
+    LinkedRelationshipsIterator(PropertyGraph* graph, node_id_t node, Mode mode = Mode::All) 
+        : graph(graph), node(node), rel(graph->getNode(node)->nextRelationship), mode(mode) {
+            while (isValidPtr() && !isValidMode()) {
+                RelationshipEntry* relPtr = graph->getRelationship(rel);
+                rel = relPtr->firstNode == node ? relPtr->firstNextRelation : relPtr->secondNextRelation;
+            }
+        }
+    bool isValid() override {
+        return isValidPtr() && isValidMode();
+    }
+    void next() override {
+        do {
+            RelationshipEntry* relPtr = graph->getRelationship(rel);
+            rel = relPtr->firstNode == node ? relPtr->firstNextRelation : relPtr->secondNextRelation;
+        } while (isValidPtr() && !isValidMode());
+    }
+    relationship_id_t operator*() override {
+        return rel;
+    }
+    PropertyGraph* getPropertyGraph() override {
+        return graph;
+    }
+    private:
+    bool isValidPtr() {
+        return rel >= 0 && rel < graph->relBufferSize && graph->getRelationship(rel)->inUse;
+    }
+    bool isValidMode() {
+        if (mode == Mode::Outgoing) {
+            return graph->getRelationship(rel)->firstNode == node;
+        }
+        if (mode == Mode::Incoming) {
+            return graph->getRelationship(rel)->secondNode == node;
+        }
+        return true;
+    }
+};
+EdgeSet* PropertyGraph::createConnectedEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::All);
+}
+EdgeSet* PropertyGraph::createIncomingEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::Incoming);
+}
+EdgeSet* PropertyGraph::createOutgoingEdgeSet(node_id_t node) {
+    return new PropertyGraphLinkedRelationshipsSet(
+        this, node, PropertyGraphLinkedRelationshipsSet::Mode::Outgoing);
+}
+
+NodeSetIterator* PropertyGraphNodeSet::createIterator() {
+    return new PropertyGraph::AllNodesIterator(graph);
+}
+EdgeSetIterator* PropertyGraphEdgeSet::createIterator() {
+    return new PropertyGraph::AllEdgesIterator(graph);
+}
+EdgeSetIterator* PropertyGraphLinkedRelationshipsSet::createIterator() {
+    return new PropertyGraph::LinkedRelationshipsIterator(
+        graph, node, (PropertyGraph::LinkedRelationshipsIterator::Mode) mode);
 }
 
 } // lingodb::runtime::graph
