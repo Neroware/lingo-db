@@ -3972,10 +3972,19 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
    public:
    using SubOpConversionPattern<graph::ScanNodeSetOp>::SubOpConversionPattern;
    LogicalResult matchAndRewrite(graph::ScanNodeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
-      if (!mlir::isa<graph::NodeSetType>(scanRefsOp.getNodeSet().getType())) return failure();
+      auto nodeSetType = mlir::dyn_cast_or_null<graph::NodeSetType>(scanRefsOp.getNodeSet().getType());
+      if (!nodeSetType) return failure();
       auto nodeRefColType = scanRefsOp.getProducedReference().getColumn().type;
       auto nodeRefType = mlir::dyn_cast_or_null<graph::NodeRefType>(nodeRefColType);
       if (!nodeRefType) return failure();
+      if (nodeSetType.getMembers().getTypes().size() == 0) assert(false && "Node set requires an iterator member!");
+      auto nodeSetIt = mlir::dyn_cast<mlir::TypeAttr>(*(nodeSetType.getMembers().getTypes().begin()));
+      auto nodeSetItType = mlir::dyn_cast_or_null<graph::NodeSetIteratorType>(nodeSetIt.getValue());
+      if (!nodeSetItType) assert(false && "Node set requires an iterator member!");
+      if (nodeSetItType.getStrategy().size() == 0) assert(false && "Node set iterator requires an iteration strategy!");
+      auto nodeSetItStrategy = mlir::dyn_cast_or_null<StringAttr>(*(nodeSetItType.getStrategy().begin()));
+      if (!nodeSetItStrategy) return failure();
+      if (nodeSetItStrategy.str() != "all") assert(false && "Compiler does not support the given iteration strategy!");
       ColumnMapping mapping;
       auto loc = scanRefsOp->getLoc();
       auto it = rt::GraphNodeSet::nodeSetCreateIterator(rewriter, loc)({adaptor.getNodeSet()})[0];
@@ -3992,6 +4001,54 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
       });
       it.getOwner()->getParentOfType<mlir::ModuleOp>()->dump();
       return success();
+   }
+};
+
+class ScanEdgeSetLowering : public SubOpConversionPattern<graph::ScanEdgeSetOp> {
+   public:
+   using SubOpConversionPattern<graph::ScanEdgeSetOp>::SubOpConversionPattern;
+   LogicalResult matchAndRewrite(graph::ScanEdgeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
+      auto edgeSetType = mlir::dyn_cast_or_null<graph::EdgeSetType>(scanRefsOp.getEdgeSet().getType());
+      if (!edgeSetType) return failure();
+      auto edgeRefColType = scanRefsOp.getProducedReference().getColumn().type;
+      auto edgeRefType = mlir::dyn_cast_or_null<graph::EdgeRefType>(edgeRefColType);
+      if (!edgeRefType) return failure();
+      if (edgeRefType.getMembers().getTypes().size() == 0) assert(false && "Edge set requires an iterator member!");
+      auto edgeSetIt = mlir::dyn_cast<mlir::TypeAttr>(*(edgeSetType.getMembers().getTypes().begin()));
+      auto edgeSetItType = mlir::dyn_cast_or_null<graph::EdgeSetIteratorType>(edgeSetIt.getValue());
+      if (!edgeSetItType) assert(false && "Edge set requires an iterator member!");
+      if (edgeSetItType.getStrategy().size() == 0) assert(false && "Edge set iterator requires an iteration strategy!");
+      auto edgeSetItStrategy = mlir::dyn_cast_or_null<StringAttr>(*(edgeSetItType.getStrategy().begin()));
+      if (!edgeSetItStrategy) return failure();
+      if (edgeSetItStrategy.str() == "all") return genIterationStrategyAll(scanRefsOp, adaptor, rewriter, edgeRefType);
+      else if (edgeSetItStrategy.str() == "incoming") return genIterationStrategyIncoming(scanRefsOp, adaptor, rewriter);
+      else if (edgeSetItStrategy.str() == "outgoing") return genIterationStrategyOutgoing(scanRefsOp, adaptor, rewriter);
+      assert(false && "Compiler does not support the given iteration strategy!");
+      return failure();
+   }
+   private:
+   LogicalResult genIterationStrategyAll(graph::ScanEdgeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter, graph::EdgeRefType edgeRefType) const {
+      ColumnMapping mapping;
+      auto loc = scanRefsOp->getLoc();
+      auto it = rt::GraphEdgeSet::edgeSetCreateIterator(rewriter, loc)({adaptor.getEdgeSet()})[0];
+      auto edgeEntryType = getEdgeEntryType(edgeRefType, *typeConverter);
+      implementBufferIteration(scanRefsOp->hasAttr("parallel"), it, edgeEntryType, loc, rewriter, *typeConverter, scanRefsOp.getOperation(), [&](SubOpRewriter& rewriter, mlir::Value ptr) {
+         auto inUseRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(rewriter.getContext(), rewriter.getI1Type()), ptr, 0);
+         auto inUse = rewriter.create<util::LoadOp>(loc, inUseRef);
+         auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, inUse);
+         ifOp.ensureTerminator(ifOp.getThenRegion(), rewriter, scanRefsOp->getLoc());
+         rewriter.atStartOf(&ifOp.getThenRegion().front(), [&](SubOpRewriter& rewriter) {
+            mapping.define(scanRefsOp.getRef(), ptr);
+            rewriter.replaceTupleStream(scanRefsOp, mapping);
+         });
+      });
+      return success();
+   }
+   LogicalResult genIterationStrategyIncoming(graph::ScanEdgeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const {
+      return failure();
+   }
+   LogicalResult genIterationStrategyOutgoing(graph::ScanEdgeSetOp scanRefsOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const {
+      return failure();
    }
 };
 
@@ -4028,6 +4085,7 @@ void handleExecutionStepCPU(subop::ExecutionStepOp step, subop::ExecutionGroupOp
    rewriter.insertPattern<CreateGraphLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanGraphLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanNodeSetLowering>(typeConverter, ctxt);
+   rewriter.insertPattern<ScanEdgeSetLowering>(typeConverter, ctxt);
 
    //Hashmap
    rewriter.insertPattern<CreateHashMapLowering>(typeConverter, ctxt);
