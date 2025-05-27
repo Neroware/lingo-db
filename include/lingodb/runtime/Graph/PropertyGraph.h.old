@@ -6,14 +6,14 @@
 
 namespace lingodb::runtime {
 typedef int64_t node_id_t;
-typedef int64_t relationship_id_t;
+typedef int64_t edge_id_t;
 // Implementation of a native property graph following Graph Databases, 2nd Edition by Ian Robinson, Jim Webber & Emil Eifrem
 // See: https://www.oreilly.com/library/view/graph-databases-2nd/9781491930885/ (Figure 6-4)
 class PropertyGraph {
     private:
     struct NodeEntry {
         bool inUse;
-        relationship_id_t nextRelationship;
+        edge_id_t nextRelationship;
         int64_t property; // TODO for now we only support a single node property of type i64
     }; // NodeEntry
     struct RelationshipEntry {
@@ -21,10 +21,10 @@ class PropertyGraph {
         node_id_t firstNode;
         node_id_t secondNode;
         int64_t type;
-        relationship_id_t firstPrevRelation;
-        relationship_id_t firstNextRelation;
-        relationship_id_t secondPrevRelation;
-        relationship_id_t secondNextRelation;
+        edge_id_t firstPrevRelation;
+        edge_id_t firstNextRelation;
+        edge_id_t secondPrevRelation;
+        edge_id_t secondNextRelation;
         int64_t property; // TODO for now we only support a single edge property of type i64
     }; // RelationshipEntry
     runtime::LegacyFixedSizedBuffer<NodeEntry> nodes;
@@ -34,12 +34,12 @@ class PropertyGraph {
     PropertyGraph(size_t maxNodeCapacity, size_t maxRelCapacity) : nodes(maxNodeCapacity), relationships(maxRelCapacity) {}
 
     node_id_t nodeBufferSize = 0;
-    relationship_id_t relBufferSize = 0;
+    edge_id_t relBufferSize = 0;
 
     node_id_t getNodeId(NodeEntry* node) const;
-    relationship_id_t getRelationshipId(RelationshipEntry* rel) const;
+    edge_id_t getRelationshipId(RelationshipEntry* rel) const;
     NodeEntry* getNode(node_id_t node) const;
-    RelationshipEntry* getRelationship(relationship_id_t rel) const;
+    RelationshipEntry* getRelationship(edge_id_t rel) const;
 
     public:
     struct AllNodesIterator;
@@ -47,15 +47,15 @@ class PropertyGraph {
     struct LinkedRelationshipsIterator;
 
     node_id_t addNode();
-    relationship_id_t addRelationship(node_id_t from, node_id_t to);
+    edge_id_t addRelationship(node_id_t from, node_id_t to);
 
     node_id_t removeNode(node_id_t node);
-    relationship_id_t removeRelationship(relationship_id_t rel);
+    edge_id_t removeRelationship(edge_id_t rel);
 
     void setNodeProperty(node_id_t id, int64_t value);
     int64_t getNodeProperty(node_id_t id) const;
-    void setRelationshipProperty(relationship_id_t id, int64_t value);
-    int64_t getRelationshipProperty(relationship_id_t id) const;
+    void setRelationshipProperty(edge_id_t id, int64_t value);
+    int64_t getRelationshipProperty(edge_id_t id) const;
 
     static PropertyGraph* create(size_t initialNodeCapacity, size_t initialRelationshipCapacity);
     static PropertyGraph* createTestGraph();

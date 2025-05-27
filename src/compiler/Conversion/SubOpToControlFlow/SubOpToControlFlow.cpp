@@ -818,14 +818,16 @@ static mlir::TupleType getHashMultiMapValueType(subop::HashMultiMapType t, mlir:
 static mlir::TupleType getNodeEntryType(graph::NodeRefType t, mlir::TypeConverter& converter) {
    auto i1Type = IntegerType::get(t.getContext(), 1);
    auto i64Type = IntegerType::get(t.getContext(), 64);
+   auto ptrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
-   return mlir::TupleType::get(t.getContext(), {i1Type, i64Type, propertyTupleType});
+   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, propertyTupleType});
 }
 static mlir::TupleType getEdgeEntryType(graph::EdgeRefType t, mlir::TypeConverter& converter) {
    auto i1Type = IntegerType::get(t.getContext(), 1);
    auto i64Type = IntegerType::get(t.getContext(), 64);
+   auto ptrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
-   return mlir::TupleType::get(t.getContext(), {i1Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
+   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
 }
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
@@ -3964,6 +3966,7 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
       mapping.define(scanGraphOp.getNodeSet(), vxPtr);
       mapping.define(scanGraphOp.getEdgeSet(), exPtr);
       rewriter.replaceTupleStream(scanGraphOp, mapping);
+      vxPtr.getDefiningOp()->getParentOfType<ModuleOp>().dump();
       return success();
    }
 };
@@ -3999,7 +4002,6 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
             rewriter.replaceTupleStream(scanRefsOp, mapping);
          });
       });
-      it.getOwner()->getParentOfType<mlir::ModuleOp>()->dump();
       return success();
    }
 };
@@ -4052,6 +4054,35 @@ class ScanEdgeSetLowering : public SubOpConversionPattern<graph::ScanEdgeSetOp> 
    }
 };
 
+class NodeRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPattern<subop::GatherOp, 2> {
+   public:
+   using SubOpTupleStreamConsumerConversionPattern<subop::GatherOp, 2>::SubOpTupleStreamConsumerConversionPattern;
+   LogicalResult matchAndRewrite(subop::GatherOp gatherOp, OpAdaptor adaptor, SubOpRewriter& rewriter, ColumnMapping& mapping) const override {
+      // auto refType = gatherOp.getRef().getColumn().type;
+      // auto referenceType = mlir::dyn_cast_or_null<subop::HashMapEntryRefType>(refType);
+      // if (!referenceType) { return failure(); }
+      // auto keyMembers = referenceType.getHashMap().getKeyMembers();
+      // auto valMembers = referenceType.getHashMap().getValueMembers();
+      // auto loc = gatherOp->getLoc();
+      // EntryStorageHelper keyStorageHelper(gatherOp, keyMembers, false, typeConverter);
+      // EntryStorageHelper valStorageHelper(gatherOp, valMembers, referenceType.hasLock(), typeConverter);
+      // auto ref = mapping.resolve(gatherOp, gatherOp.getRef());
+      // auto keyRef = rewriter.create<util::TupleElementPtrOp>(loc, keyStorageHelper.getRefType(), ref, 0);
+      // auto valRef = rewriter.create<util::TupleElementPtrOp>(loc, valStorageHelper.getRefType(), ref, 1);
+      // keyStorageHelper.loadIntoColumns(gatherOp.getMapping(), mapping, keyRef, rewriter, loc);
+      // valStorageHelper.loadIntoColumns(gatherOp.getMapping(), mapping, valRef, rewriter, loc);
+      // rewriter.replaceTupleStream(gatherOp, mapping);
+      // return success();
+      auto refType = gatherOp.getRef().getColumn().type;
+      auto referenceType = mlir::dyn_cast_or_null<graph::NodeRefType>(refType);
+      if (!referenceType) { return failure(); }
+      for (auto m : gatherOp.getReadMembers()) llvm::dbgs() << ">>>> " << m << "\n";
+      // referenceType.dump();
+      // gatherOp->getParentOfType<mlir::ModuleOp>()->dump();
+      return failure();
+   }
+};
+
 }; // namespace
 namespace {
 
@@ -4086,6 +4117,7 @@ void handleExecutionStepCPU(subop::ExecutionStepOp step, subop::ExecutionGroupOp
    rewriter.insertPattern<ScanGraphLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanNodeSetLowering>(typeConverter, ctxt);
    rewriter.insertPattern<ScanEdgeSetLowering>(typeConverter, ctxt);
+   rewriter.insertPattern<NodeRefGatherOpLowering>(typeConverter, ctxt);
 
    //Hashmap
    rewriter.insertPattern<CreateHashMapLowering>(typeConverter, ctxt);

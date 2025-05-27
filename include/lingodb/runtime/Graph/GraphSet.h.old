@@ -6,7 +6,7 @@
 namespace lingodb::runtime {
 
 typedef int64_t node_id_t;
-typedef int64_t relationship_id_t;
+typedef int64_t edge_id_t;
 
 class PropertyGraph;
 struct NodeSetIterator;
@@ -38,7 +38,7 @@ struct NodeSetIterator {
 struct EdgeSetIterator {
     virtual bool isValid() = 0;
     virtual void next() = 0;
-    virtual relationship_id_t operator*() = 0;
+    virtual edge_id_t operator*() = 0;
 
     virtual PropertyGraph* getPropertyGraph() = 0;
     static bool isIteratorValid(EdgeSetIterator* iterator);
@@ -46,7 +46,7 @@ struct EdgeSetIterator {
 
     static PropertyGraph* iteratorGetPropertyGraph(EdgeSetIterator* iterator);
     static void destroy(EdgeSetIterator* iterator);
-    static void iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t));
+    static void iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, edge_id_t));
     virtual ~EdgeSetIterator() {}
 }; // EdgeSetIterator
 

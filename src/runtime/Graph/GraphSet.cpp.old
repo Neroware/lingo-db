@@ -29,7 +29,7 @@ void NodeSetIterator::iteratorNext(NodeSetIterator* iterator) {
     iterator->next();
 }
     
-void EdgeSetIterator::iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, relationship_id_t)) {
+void EdgeSetIterator::iterate(EdgeSetIterator* iterator, void (*forEachChunk)(PropertyGraph*, edge_id_t)) {
     PropertyGraph* graph = iterator->getPropertyGraph();
     while (iterator->isValid()) {
         forEachChunk(graph, **iterator);

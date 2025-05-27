@@ -9,10 +9,10 @@ node_id_t PropertyGraph::getNodeId(NodeEntry* node) const {
 PropertyGraph::NodeEntry* PropertyGraph::getNode(node_id_t node) const {
     return nodes.ptr + node;
 }
-relationship_id_t PropertyGraph::getRelationshipId(RelationshipEntry* rel) const {
+edge_id_t PropertyGraph::getRelationshipId(RelationshipEntry* rel) const {
     return rel - relationships.ptr;
 }
-PropertyGraph::RelationshipEntry* PropertyGraph::getRelationship(relationship_id_t rel) const {
+PropertyGraph::RelationshipEntry* PropertyGraph::getRelationship(edge_id_t rel) const {
     return relationships.ptr + rel;
 }
 node_id_t PropertyGraph::addNode() {
@@ -26,11 +26,12 @@ node_id_t PropertyGraph::addNode() {
     }
     assert(!node->inUse && "should not happen");
     node->inUse = true;
+    node->graph = this;
     node->nextRelationship = -1;
     node->property = 0;
     return getNodeId(node);
 }
-relationship_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
+edge_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
     RelationshipEntry* rel;
     NodeEntry *fromNode = getNode(from), *toNode = getNode(to);
     if (unusedRelEntries.empty()) {
@@ -40,8 +41,9 @@ relationship_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
         rel = unusedRelEntries.back();
         unusedRelEntries.pop_back();
     }
-    relationship_id_t relId = getRelationshipId(rel);
+    edge_id_t relId = getRelationshipId(rel);
     rel->inUse = true;
+    rel->graph = this;
     rel->firstNode = from;
     rel->secondNode = to;
     rel->type = 0;
@@ -75,7 +77,7 @@ relationship_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
 node_id_t PropertyGraph::removeNode(node_id_t node) {
     assert(false && "not impelemented"); // TODO implement
 }
-relationship_id_t PropertyGraph::removeRelationship(relationship_id_t rel) {
+edge_id_t PropertyGraph::removeRelationship(edge_id_t rel) {
     assert(false && "not impelemented"); // TODO implement
 }
 void PropertyGraph::setNodeProperty(node_id_t id, int64_t value) {
@@ -84,10 +86,10 @@ void PropertyGraph::setNodeProperty(node_id_t id, int64_t value) {
 int64_t PropertyGraph::getNodeProperty(node_id_t id) const {
     return getNode(id)->property;
 }
-void PropertyGraph::setRelationshipProperty(relationship_id_t id, int64_t value) {
+void PropertyGraph::setRelationshipProperty(edge_id_t id, int64_t value) {
     getRelationship(id)->property = value;
 }
-int64_t PropertyGraph::getRelationshipProperty(relationship_id_t id) const {
+int64_t PropertyGraph::getRelationshipProperty(edge_id_t id) const {
     return getRelationship(id)->property;
 }
 PropertyGraph* PropertyGraph::create(size_t initialNodeCapacity, size_t initialRelationshipCapacity) {

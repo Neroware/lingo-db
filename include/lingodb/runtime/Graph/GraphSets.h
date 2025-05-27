@@ -7,9 +7,10 @@
 namespace lingodb::runtime {
 
 typedef int64_t node_id_t;
-typedef int64_t relationship_id_t;
+typedef int64_t edge_id_t;
 
 class PropertyGraph;
+// Represents a set that contains all nodes of a graph
 struct GraphNodeSet {
     virtual PropertyGraph* getGraph() = 0;
     virtual BufferIterator* createIterator() = 0;
@@ -17,6 +18,7 @@ struct GraphNodeSet {
     static PropertyGraph* nodeSetGetGraph(GraphNodeSet* nodeSet) { return nodeSet->getGraph(); }
     virtual ~GraphNodeSet() {}
 }; // GraphNodeSet
+// Represents a set that contains all edges of a graph
 struct GraphEdgeSet {
     virtual PropertyGraph* getGraph() = 0;
     virtual BufferIterator* createIterator() = 0;
@@ -24,16 +26,14 @@ struct GraphEdgeSet {
     static PropertyGraph* edgeSetGetGraph(GraphEdgeSet* edgeSet) { return edgeSet->getGraph(); }
     virtual ~GraphEdgeSet() {}
 }; // GraphEdgeSet
+// Represents a set that contains linked edges connected to a node
 struct GraphNodeLinkedEdgesSet {
-    enum Mode { All, Incoming, Outgoing };
-    Mode mode;
-    GraphNodeLinkedEdgesSet(Mode mode) : mode(mode) {}
     virtual PropertyGraph* getGraph() = 0;
-    virtual void* getNodeRef(node_id_t node) = 0;
-    virtual int64_t getMode() = 0;
+    virtual void* getFirstEdge(node_id_t node) = 0;
+    virtual void* getEdgesBuf() = 0;
     static PropertyGraph* edgeSetGetGraph(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getGraph(); }
-    static void* edgeSetGetNodeRef(GraphNodeLinkedEdgesSet* edgeSet, node_id_t node) { return edgeSet->getNodeRef(node); }
-    static int64_t edgeSetGetMode(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getMode(); }
+    static void* edgeSetGetFirstEdge(GraphNodeLinkedEdgesSet* edgeSet, node_id_t node) { return edgeSet->getFirstEdge(node); }
+    static void* edgeSetGetEdgesBuf(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getEdgesBuf(); }
     virtual ~GraphNodeLinkedEdgesSet() {}
 }; // GraphNodeLinkedEdgesSet
 
