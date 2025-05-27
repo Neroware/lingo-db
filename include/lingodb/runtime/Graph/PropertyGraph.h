@@ -11,12 +11,14 @@ class PropertyGraph {
     struct NodeEntry {
         bool inUse;
         PropertyGraph* graph;
+        node_id_t id;
         edge_id_t nextRelationship;
         int64_t property; // TODO for now we only support a single node property of type i64
     }; // NodeEntry
     struct RelationshipEntry {
         bool inUse;
         PropertyGraph* graph;
+        edge_id_t id;
         node_id_t firstNode;
         node_id_t secondNode;
         int64_t type;

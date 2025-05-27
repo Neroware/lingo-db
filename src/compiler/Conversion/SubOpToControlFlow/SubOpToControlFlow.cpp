@@ -820,15 +820,67 @@ static mlir::TupleType getNodeEntryType(graph::NodeRefType t, mlir::TypeConverte
    auto i64Type = IntegerType::get(t.getContext(), 64);
    auto ptrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
-   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, propertyTupleType});
+   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, propertyTupleType});
 }
+// static StateMembersAttr getNodeEntryRuntimeMembers(MLIRContext* ctxt, graph::NodeRefType referenceType) {
+//    llvm::SmallVector<Attribute, 16> rtNames = {
+//       StringAttr::get(ctxt, "__rt_inUse"),
+//       StringAttr::get(ctxt, "__rt_graph_ptr"),
+//       StringAttr::get(ctxt, "__rt_id"), 
+//       StringAttr::get(ctxt, "__rt_nextRel"), 
+//    };
+//    llvm::SmallVector<Attribute, 16> rtTypes = {
+//       TypeAttr::get(IntegerType::get(ctxt, 1)),
+//       TypeAttr::get(util::RefType::get(ctxt, IntegerType::get(ctxt, 8))),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64))
+//    };
+//    for (auto memberName : referenceType.getPropertyMembers().getNames()) {
+//       rtNames.append({memberName});
+//    }
+//    for (auto memberType : referenceType.getPropertyMembers().getTypes()) {
+//       rtTypes.append({memberType});
+//    }
+//    return StateMembersAttr::get(ctxt, ArrayAttr::get(ctxt, rtNames), ArrayAttr::get(ctxt, rtTypes));
+// }
 static mlir::TupleType getEdgeEntryType(graph::EdgeRefType t, mlir::TypeConverter& converter) {
    auto i1Type = IntegerType::get(t.getContext(), 1);
    auto i64Type = IntegerType::get(t.getContext(), 64);
    auto ptrType = util::RefType::get(t.getContext(), IntegerType::get(t.getContext(), 8));
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
-   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
+   return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
 }
+// static StateMembersAttr getEdgeEntryRuntimeMembers(MLIRContext* ctxt, graph::EdgeRefType referenceType) {
+//    llvm::SmallVector<Attribute, 16> rtNames = {
+//       StringAttr::get(ctxt, "__rt_inUse"),
+//       StringAttr::get(ctxt, "__rt_graph_ptr"),
+//       StringAttr::get(ctxt, "__rt_first_node"),
+//       StringAttr::get(ctxt, "__rt_second_node"),
+//       StringAttr::get(ctxt, "__rt_type"),
+//       StringAttr::get(ctxt, "__rt_firstPrevRel"),
+//       StringAttr::get(ctxt, "__rt_firstNextRel"),
+//       StringAttr::get(ctxt, "__rt_secondPrevRel"),
+//       StringAttr::get(ctxt, "__rt_secondNextRel"),
+//    };
+//    llvm::SmallVector<Attribute, 16> rtTypes = {
+//       TypeAttr::get(IntegerType::get(ctxt, 1)),
+//       TypeAttr::get(util::RefType::get(ctxt, IntegerType::get(ctxt, 8))),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//       TypeAttr::get(IntegerType::get(ctxt, 64)),
+//    };
+//    for (auto memberName : referenceType.getPropertyMembers().getNames()) {
+//       rtNames.append({memberName});
+//    }
+//    for (auto memberType : referenceType.getPropertyMembers().getTypes()) {
+//       rtNames.append({memberType});
+//    }
+//    return StateMembersAttr::get(ctxt, ArrayAttr::get(ctxt, rtNames), ArrayAttr::get(ctxt, rtTypes));
+// }
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -3966,7 +4018,6 @@ class ScanGraphLowering : public SubOpConversionPattern<graph::ScanGraphOp> {
       mapping.define(scanGraphOp.getNodeSet(), vxPtr);
       mapping.define(scanGraphOp.getEdgeSet(), exPtr);
       rewriter.replaceTupleStream(scanGraphOp, mapping);
-      vxPtr.getDefiningOp()->getParentOfType<ModuleOp>().dump();
       return success();
    }
 };
@@ -4002,6 +4053,7 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
             rewriter.replaceTupleStream(scanRefsOp, mapping);
          });
       });
+      // it.getDefiningOp()->getParentOfType<ModuleOp>().dump();
       return success();
    }
 };
@@ -4058,28 +4110,59 @@ class NodeRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPattern
    public:
    using SubOpTupleStreamConsumerConversionPattern<subop::GatherOp, 2>::SubOpTupleStreamConsumerConversionPattern;
    LogicalResult matchAndRewrite(subop::GatherOp gatherOp, OpAdaptor adaptor, SubOpRewriter& rewriter, ColumnMapping& mapping) const override {
-      // auto refType = gatherOp.getRef().getColumn().type;
-      // auto referenceType = mlir::dyn_cast_or_null<subop::HashMapEntryRefType>(refType);
-      // if (!referenceType) { return failure(); }
-      // auto keyMembers = referenceType.getHashMap().getKeyMembers();
-      // auto valMembers = referenceType.getHashMap().getValueMembers();
-      // auto loc = gatherOp->getLoc();
-      // EntryStorageHelper keyStorageHelper(gatherOp, keyMembers, false, typeConverter);
-      // EntryStorageHelper valStorageHelper(gatherOp, valMembers, referenceType.hasLock(), typeConverter);
-      // auto ref = mapping.resolve(gatherOp, gatherOp.getRef());
-      // auto keyRef = rewriter.create<util::TupleElementPtrOp>(loc, keyStorageHelper.getRefType(), ref, 0);
-      // auto valRef = rewriter.create<util::TupleElementPtrOp>(loc, valStorageHelper.getRefType(), ref, 1);
-      // keyStorageHelper.loadIntoColumns(gatherOp.getMapping(), mapping, keyRef, rewriter, loc);
-      // valStorageHelper.loadIntoColumns(gatherOp.getMapping(), mapping, valRef, rewriter, loc);
-      // rewriter.replaceTupleStream(gatherOp, mapping);
-      // return success();
       auto refType = gatherOp.getRef().getColumn().type;
       auto referenceType = mlir::dyn_cast_or_null<graph::NodeRefType>(refType);
       if (!referenceType) { return failure(); }
-      for (auto m : gatherOp.getReadMembers()) llvm::dbgs() << ">>>> " << m << "\n";
-      // referenceType.dump();
-      // gatherOp->getParentOfType<mlir::ModuleOp>()->dump();
-      return failure();
+      auto nodeMembers = referenceType.getNodeMembers();
+      auto incomingMembers = referenceType.getIncomingMembers();
+      auto outgoingMembers = referenceType.getOutgoingMembers();
+      auto propertyMembers = referenceType.getPropertyMembers();
+      auto ctxt = gatherOp.getContext();
+      auto loc = gatherOp.getLoc();
+      auto ref = mapping.resolve(gatherOp, gatherOp.getRef());
+      auto graphRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI8Type()), ref, 1);
+      auto propertyTupleRef = rewriter.create<util::TupleElementPtrOp>(loc, typeConverter->convertType<util::RefType>(referenceType), ref, 4);
+      llvm::SmallVector<Attribute, 16> columns;
+      llvm::SmallVector<Value, 16> columnValues;
+      processMembers(gatherOp, nodeMembers, [&](size_t i, StringAttr name, TypeAttr type){
+         auto columnDef = gatherOp.getMapping().get(name);
+         auto nodeId = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI64Type()), ref, 2);
+         columns.append({columnDef});
+         columnValues.append({nodeId});
+      });
+      processMembers(gatherOp, incomingMembers, [&](size_t i, StringAttr name, TypeAttr type){
+         auto columnDef = gatherOp.getMapping().get(name);
+         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphRef})[0];
+         columns.append({columnDef});
+         columnValues.append({edgeSet});
+      });
+      processMembers(gatherOp, outgoingMembers, [&](size_t i, StringAttr name, TypeAttr type){
+         auto columnDef = gatherOp.getMapping().get(name);
+         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphRef})[0];
+         columns.append({columnDef});
+         columnValues.append({edgeSet});
+      });
+      processMembers(gatherOp, propertyMembers, [&](size_t i, StringAttr name, TypeAttr type){
+         auto columnDef = gatherOp.getMapping().get(name);
+         auto propertyRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, type.getValue()), propertyTupleRef, i);
+         columns.append({columnDef});
+         columnValues.append({propertyRef});
+      });
+      mapping.define(mlir::ArrayAttr::get(ctxt, columns), columnValues);
+      rewriter.replaceTupleStream(gatherOp, mapping);
+      graphRef->getParentOfType<ModuleOp>().dump();
+      return success();
+   }
+   private:
+   void processMembers(GatherOp& gatherOp, StateMembersAttr& members, std::function<void(size_t, StringAttr, TypeAttr)> fn) const {
+      for (size_t i = 0; i < members.getNames().size(); i++) {
+         for (auto member : gatherOp.getReadMembers()) {
+            auto nameAttr = mlir::cast<StringAttr>(members.getNames()[i]);
+            if (member != nameAttr.str())
+                break;
+            fn(i, nameAttr, mlir::cast<TypeAttr>(members.getTypes()[i]));
+         }
+      }
    }
 };
 
@@ -4350,7 +4433,21 @@ void SubOpToControlFlowLoweringPass::runOnOperation() {
       return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
    });
    typeConverter.addConversion([&](graph::NodeRefType t) -> Type {
-      return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+      // auto ptrType = util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
+      // auto i1Type = mlir::IntegerType::get(ctxt, 1);
+      // auto i64Type = mlir::IntegerType::get(ctxt, 64);
+      // llvm::SmallVector<mlir::Type, 8> propertyTypes;
+      // t.getMembers().walk([&](mlir::TypeAttr type) {
+      //    propertyTypes.append({typeConverter.convertType(type.getValue())});
+      // });
+      // auto propertyType = mlir::TupleType::get(t.getContext(), propertyTypes);
+      // return TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, propertyType});
+      llvm::SmallVector<mlir::Type, 8> propertyTypes;
+      t.getPropertyMembers().walk([&](mlir::TypeAttr typeAttr) {
+         propertyTypes.append({typeConverter.convertType(typeAttr.getValue())});
+      });
+      return util::RefType::get(t.getContext(), mlir::TupleType::get(t.getContext(), propertyTypes));
+      
    });
    typeConverter.addConversion([&](graph::EdgeRefType t) -> Type {
       return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));

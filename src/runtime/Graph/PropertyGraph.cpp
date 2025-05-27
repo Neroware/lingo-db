@@ -25,11 +25,13 @@ node_id_t PropertyGraph::addNode() {
         unusedNodeEntries.pop_back();
     }
     assert(!node->inUse && "should not happen");
+    node_id_t nodeId = getNodeId(node);
     node->inUse = true;
     node->graph = this;
+    node->id = nodeId;
     node->nextRelationship = -1;
     node->property = 0;
-    return getNodeId(node);
+    return nodeId;
 }
 edge_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
     RelationshipEntry* rel;
@@ -44,6 +46,7 @@ edge_id_t PropertyGraph::addRelationship(node_id_t from, node_id_t to) {
     edge_id_t relId = getRelationshipId(rel);
     rel->inUse = true;
     rel->graph = this;
+    rel->id = relId;
     rel->firstNode = from;
     rel->secondNode = to;
     rel->type = 0;
