@@ -822,27 +822,6 @@ static mlir::TupleType getNodeEntryType(graph::NodeRefType t, mlir::TypeConverte
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
    return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, propertyTupleType});
 }
-// static StateMembersAttr getNodeEntryRuntimeMembers(MLIRContext* ctxt, graph::NodeRefType referenceType) {
-//    llvm::SmallVector<Attribute, 16> rtNames = {
-//       StringAttr::get(ctxt, "__rt_inUse"),
-//       StringAttr::get(ctxt, "__rt_graph_ptr"),
-//       StringAttr::get(ctxt, "__rt_id"), 
-//       StringAttr::get(ctxt, "__rt_nextRel"), 
-//    };
-//    llvm::SmallVector<Attribute, 16> rtTypes = {
-//       TypeAttr::get(IntegerType::get(ctxt, 1)),
-//       TypeAttr::get(util::RefType::get(ctxt, IntegerType::get(ctxt, 8))),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64))
-//    };
-//    for (auto memberName : referenceType.getPropertyMembers().getNames()) {
-//       rtNames.append({memberName});
-//    }
-//    for (auto memberType : referenceType.getPropertyMembers().getTypes()) {
-//       rtTypes.append({memberType});
-//    }
-//    return StateMembersAttr::get(ctxt, ArrayAttr::get(ctxt, rtNames), ArrayAttr::get(ctxt, rtTypes));
-// }
 static mlir::TupleType getEdgeEntryType(graph::EdgeRefType t, mlir::TypeConverter& converter) {
    auto i1Type = IntegerType::get(t.getContext(), 1);
    auto i64Type = IntegerType::get(t.getContext(), 64);
@@ -850,37 +829,6 @@ static mlir::TupleType getEdgeEntryType(graph::EdgeRefType t, mlir::TypeConverte
    auto propertyTupleType = EntryStorageHelper(nullptr, t.getPropertyMembers(), false, &converter).getStorageType();
    return mlir::TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, i64Type, propertyTupleType});
 }
-// static StateMembersAttr getEdgeEntryRuntimeMembers(MLIRContext* ctxt, graph::EdgeRefType referenceType) {
-//    llvm::SmallVector<Attribute, 16> rtNames = {
-//       StringAttr::get(ctxt, "__rt_inUse"),
-//       StringAttr::get(ctxt, "__rt_graph_ptr"),
-//       StringAttr::get(ctxt, "__rt_first_node"),
-//       StringAttr::get(ctxt, "__rt_second_node"),
-//       StringAttr::get(ctxt, "__rt_type"),
-//       StringAttr::get(ctxt, "__rt_firstPrevRel"),
-//       StringAttr::get(ctxt, "__rt_firstNextRel"),
-//       StringAttr::get(ctxt, "__rt_secondPrevRel"),
-//       StringAttr::get(ctxt, "__rt_secondNextRel"),
-//    };
-//    llvm::SmallVector<Attribute, 16> rtTypes = {
-//       TypeAttr::get(IntegerType::get(ctxt, 1)),
-//       TypeAttr::get(util::RefType::get(ctxt, IntegerType::get(ctxt, 8))),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//       TypeAttr::get(IntegerType::get(ctxt, 64)),
-//    };
-//    for (auto memberName : referenceType.getPropertyMembers().getNames()) {
-//       rtNames.append({memberName});
-//    }
-//    for (auto memberType : referenceType.getPropertyMembers().getTypes()) {
-//       rtNames.append({memberType});
-//    }
-//    return StateMembersAttr::get(ctxt, ArrayAttr::get(ctxt, rtNames), ArrayAttr::get(ctxt, rtTypes));
-// }
 
 static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter) {
    std::vector<Type> types;
@@ -4433,15 +4381,6 @@ void SubOpToControlFlowLoweringPass::runOnOperation() {
       return util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
    });
    typeConverter.addConversion([&](graph::NodeRefType t) -> Type {
-      // auto ptrType = util::RefType::get(t.getContext(), mlir::IntegerType::get(ctxt, 8));
-      // auto i1Type = mlir::IntegerType::get(ctxt, 1);
-      // auto i64Type = mlir::IntegerType::get(ctxt, 64);
-      // llvm::SmallVector<mlir::Type, 8> propertyTypes;
-      // t.getMembers().walk([&](mlir::TypeAttr type) {
-      //    propertyTypes.append({typeConverter.convertType(type.getValue())});
-      // });
-      // auto propertyType = mlir::TupleType::get(t.getContext(), propertyTypes);
-      // return TupleType::get(t.getContext(), {i1Type, ptrType, i64Type, i64Type, propertyType});
       llvm::SmallVector<mlir::Type, 8> propertyTypes;
       t.getPropertyMembers().walk([&](mlir::TypeAttr typeAttr) {
          propertyTypes.append({typeConverter.convertType(typeAttr.getValue())});
