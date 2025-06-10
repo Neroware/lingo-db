@@ -44,8 +44,9 @@ class PropertyGraph {
         PropertyGraph* graph;
         PropertyGraphNodeLinkedRelationshipsSet(PropertyGraph* graph) : graph(graph) {}
         PropertyGraph* getGraph() override { return graph; }
-        void* getFirstEdge(node_id_t node) override { return (void*) getGraph()->getNode(node)->nextRelationship; }
+        edge_id_t getFirstEdge(node_id_t node) override { return getGraph()->getNode(node)->nextRelationship; }
         void* getEdgesBuf() override { return getGraph()->relationships.ptr; }
+        size_t getEdgesBufLen() override { return getGraph()->relBufferSize; }
     }; // PropertyGraphNodeLinkedRelationshipsSet
     runtime::LegacyFixedSizedBuffer<NodeEntry> nodes;
     runtime::LegacyFixedSizedBuffer<RelationshipEntry> relationships;

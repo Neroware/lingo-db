@@ -29,11 +29,13 @@ struct GraphEdgeSet {
 // Represents a set that contains linked edges connected to a node
 struct GraphNodeLinkedEdgesSet {
     virtual PropertyGraph* getGraph() = 0;
-    virtual void* getFirstEdge(node_id_t node) = 0;
+    virtual edge_id_t getFirstEdge(node_id_t node) = 0;
     virtual void* getEdgesBuf() = 0;
+    virtual size_t getEdgesBufLen() = 0;
     static PropertyGraph* edgeSetGetGraph(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getGraph(); }
-    static void* edgeSetGetFirstEdge(GraphNodeLinkedEdgesSet* edgeSet, node_id_t node) { return edgeSet->getFirstEdge(node); }
+    static edge_id_t edgeSetGetFirstEdge(GraphNodeLinkedEdgesSet* edgeSet, node_id_t node) { return edgeSet->getFirstEdge(node); }
     static void* edgeSetGetEdgesBuf(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getEdgesBuf(); }
+    static size_t edgeSetGetEdgesBufLen(GraphNodeLinkedEdgesSet* edgeSet) { return edgeSet->getEdgesBufLen(); }
     virtual ~GraphNodeLinkedEdgesSet() {}
 }; // GraphNodeLinkedEdgesSet
 
