@@ -4096,7 +4096,7 @@ class ScanEdgeSetLowering : public SubOpConversionPattern<graph::ScanEdgeSetOp> 
 
             // Begin LList traversal
             auto llistElemType = rewriter.getI64Type();
-            auto llistElemRef = rewriter.create<util::AllocaOp>(loc, util::RefType::get(ctxt, llistElemType), mlir::Value());
+            mlir::Value llistElemRef = rewriter.create<util::AllocaOp>(loc, util::RefType::get(ctxt, llistElemType), mlir::Value());
             rewriter.create<util::StoreOp>(loc, startEdgeId, llistElemRef, mlir::Value());
             
             auto isValid = [&](OpBuilder& b, Location loc, mlir::Value elem) -> mlir::Value {
@@ -4132,54 +4132,38 @@ class ScanEdgeSetLowering : public SubOpConversionPattern<graph::ScanEdgeSetOp> 
                return b.create<arith::AddIOp>(loc, rewriter.getI64Type(), first.getResult(0), second.getResult(0));
             };
             
-            auto elem = rewriter.create<util::LoadOp>(loc, llistElemRef);
-            isValid(rewriter, loc, elem);
-            skipCondition(rewriter, loc, elem);
-            next(rewriter, loc, elem);
+            auto whileArgType = util::RefType::get(ctxt, llistElemType);
+            auto whileOp = rewriter.create<mlir::scf::WhileOp>(loc, whileArgType, llistElemRef);
+            Block* before = new Block;
+            Block* after = new Block;
+            whileOp.getBefore().push_back(before);
+            whileOp.getAfter().push_back(after);
+            mlir::Value beforeArg = before->addArgument(whileArgType, loc);
+            mlir::Value afterArg = after->addArgument(whileArgType, loc);
+            rewriter.atStartOf(before, [&](SubOpRewriter& rewriter) {
+               auto elem = rewriter.create<util::LoadOp>(loc, beforeArg);
+               auto valid = isValid(rewriter, loc, elem);
+               auto skip = skipCondition(rewriter, loc, elem);
+               auto skipNeg = rewriter.create<db::NotOp>(loc, skip);
+               auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, skipNeg);
+               ifOp.ensureTerminator(ifOp.getThenRegion(), rewriter, scanRefsOp->getLoc());
+               rewriter.atStartOf(&ifOp.getThenRegion().front(), [&](SubOpRewriter& rewriter) {
+                  // Payload here!!!
+                  auto edgeRef = rewriter.create<util::BufferGetElementRef>(loc, util::RefType::get(ctxt, edgeEntryType), edgeBuf, elem);
+                  mapping.define(scanRefsOp.getRef(), edgeRef);
+                  rewriter.replaceTupleStream(scanRefsOp, mapping);
+               });
+               auto nextElem = next(rewriter, loc, elem);
+               rewriter.create<util::StoreOp>(loc, nextElem, llistElemRef, mlir::Value());
+               rewriter.create<mlir::scf::ConditionOp>(loc, valid, beforeArg);
+            });
+            rewriter.atStartOf(after, [&](SubOpRewriter& rewriter) {
+               rewriter.create<mlir::scf::YieldOp>(loc, afterArg);
+            });
          });
-         // auto edgeRefType = getEdgeEntryType(mlir::dyn_cast_or_null<graph::EdgeRefType>(scanRefsOp.getRef().getColumn().type), *typeConverter);
-         // auto lheadPtr64 = rewriter.create<util::GenericMemrefCastOp>(loc, util::RefType::get(ctxt, rewriter.getI64Type()), lheadPtr);
-         // auto lheadPtrI64 = rewriter.create<util::LoadOp>(loc, lheadPtr64);
       });
-
-      // %lastI, %res1, %res2 = scf.while(%i1=%c0,%curr1_i=%c0,%curr2_i=%c1) : (index,index,index) -> (index,index,index){
-	 	// %lt = arith.cmpi ult, %i1, %c5 :index
-	 	// scf.condition(%lt) %i1, %curr1_i,%curr2_i : index,index,index
-	   // } do {
-	   // ^bb0(%i :index,%curr1:index, %curr2:index):
-		//    %add= arith.addi %curr1, %i :index
-	   // 	%inc1 = arith.addi %i, %c1 : index
-	   // 	%mul= arith.muli %curr2,%inc1 :index
-		//    scf.yield %inc1, %add, %mul : index,index,index
-	   // }
-
-      // auto* funcBody = new Block;
-      // mlir::Value recordBatchPointer = funcBody->addArgument(ptrType, loc);
-      // mlir::Value contextPtr = funcBody->addArgument(ptrType, loc);
-      // funcOp.getBody().push_back(funcBody);
-      // auto ptr = rewriter.storeStepRequirements();
-      // rewriter.atStartOf(funcBody, [&](SubOpRewriter& rewriter) {
-      //    rewriter.loadStepRequirements(contextPtr, typeConverter);
-      //    recordBatchPointer = rewriter.create<util::GenericMemrefCastOp>(loc, util::RefType::get(getContext(), recordBatchType), recordBatchPointer);
-
-      //    mlir::Value recordBatch = rewriter.create<util::LoadOp>(loc, recordBatchPointer, mlir::Value());
-
-      //    auto start = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 0);
-      //    auto end = rewriter.create<dsa::GetRecordBatchLen>(loc, recordBatch);
-      //    auto c1 = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 1);
-      //    auto forOp2 = rewriter.create<mlir::scf::ForOp>(loc, start, end, c1, mlir::ValueRange{});
-      //    rewriter.atStartOf(forOp2.getBody(), [&](SubOpRewriter& rewriter) {
-      //       auto currentRecord = rewriter.create<dsa::GetRecord>(loc, recordBatchType.getElementType(), recordBatch, forOp2.getInductionVar());
-      //       mapping.define(scanOp.getRef(), currentRecord);
-      //       rewriter.replaceTupleStream(scanOp, mapping);
-      //    });
-      //    rewriter.create<mlir::func::ReturnOp>(loc);
-      // });
-      // Value functionPointer = rewriter.create<mlir::func::ConstantOp>(loc, funcOp.getFunctionType(), SymbolRefAttr::get(rewriter.getStringAttr(funcOp.getSymName())));
-      // Value parallelConst = rewriter.create<mlir::arith::ConstantIntOp>(loc, scanOp->hasAttr("parallel"), rewriter.getI1Type());
-
-      funcOp->getParentOfType<ModuleOp>()->dump();
-      return failure();
+      // funcOp->getParentOfType<ModuleOp>()->dump();
+      return success();
    }
 };
 
