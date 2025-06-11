@@ -32,5 +32,6 @@ add_mlir_conversion_library(MLIRSubOpToControlFlow
         MLIRDB
         MLIRDSA
         MLIRSubOperator
+        MLIRGraph
         runtime_funcs_ptr
 )
