@@ -1143,6 +1143,7 @@ class CreateFromResultTableLowering : public SubOpConversionPattern<subop::Creat
       mlir::Value localTable = rewriter.create<dsa::CreateTable>(createOp->getLoc(), dsa::TableType::get(getContext(), mlir::TupleType::get(getContext(), types)), createOp.getColumns(), columns);
       localTable = rewriter.create<dsa::DownCast>(createOp->getLoc(), typeConverter->convertType(createOp.getType()), localTable);
       rewriter.replaceOp(createOp, localTable);
+      // localTable.getDefiningOp()->getParentOfType<ModuleOp>()->dump();
       return success();
    }
 };
@@ -4001,7 +4002,6 @@ class ScanNodeSetLowering : public SubOpConversionPattern<graph::ScanNodeSetOp> 
             rewriter.replaceTupleStream(scanRefsOp, mapping);
          });
       });
-      // it.getDefiningOp()->getParentOfType<ModuleOp>().dump();
       return success();
    }
 };
@@ -4162,7 +4162,6 @@ class ScanEdgeSetLowering : public SubOpConversionPattern<graph::ScanEdgeSetOp> 
             });
          });
       });
-      // funcOp->getParentOfType<ModuleOp>()->dump();
       return success();
    }
 };
@@ -4181,25 +4180,27 @@ class NodeRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPattern
       auto ctxt = gatherOp.getContext();
       auto loc = gatherOp.getLoc();
       auto ref = mapping.resolve(gatherOp, gatherOp.getRef());
-      auto graphRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI8Type()), ref, 1);
-      auto propertyTupleRef = rewriter.create<util::TupleElementPtrOp>(loc, typeConverter->convertType<util::RefType>(referenceType), ref, 4);
+      auto graphRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, util::RefType::get(ctxt, rewriter.getI8Type())), ref, 1);
+      auto graphPtr = rewriter.create<util::LoadOp>(loc, graphRef);
+      // auto propertyTupleRef = rewriter.create<util::TupleElementPtrOp>(loc, typeConverter->convertType<util::RefType>(referenceType), ref, 4);
       llvm::SmallVector<Attribute, 16> columns;
       llvm::SmallVector<Value, 16> columnValues;
       processMembers(gatherOp, nodeMembers, [&](size_t i, StringAttr name, TypeAttr type){
          auto columnDef = gatherOp.getMapping().get(name);
-         auto nodeId = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI64Type()), ref, 2);
+         auto nodeIdRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI64Type()), ref, 2);
+         auto nodeId = rewriter.create<util::LoadOp>(loc, nodeIdRef);
          columns.append({columnDef});
          columnValues.append({nodeId});
       });
       processMembers(gatherOp, incomingMembers, [&](size_t i, StringAttr name, TypeAttr type){
          auto columnDef = gatherOp.getMapping().get(name);
-         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphRef})[0];
+         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphPtr})[0];
          columns.append({columnDef});
          columnValues.append({edgeSet});
       });
       auto processEdgeSetMembers = [&](size_t i, StringAttr name, TypeAttr type){
          auto columnDef = gatherOp.getMapping().get(name);
-         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphRef})[0];
+         auto edgeSet = rt::PropertyGraph::getNodeLinkedEdgeSet(rewriter, loc)({graphPtr})[0];
          auto nodeId = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, rewriter.getI64Type()), ref, 2);
          auto allocaRef = rewriter.create<util::AllocaOp>(loc, util::RefType::get(ctxt, TupleType::get(ctxt, {edgeSet.getType(), nodeId.getType()})), mlir::Value());
          auto edgeSetRef = rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(ctxt, edgeSet.getType()), allocaRef, 0);
@@ -4213,7 +4214,6 @@ class NodeRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPattern
       processMembers(gatherOp, propertyMembers, processEdgeSetMembers);
       mapping.define(mlir::ArrayAttr::get(ctxt, columns), columnValues);
       rewriter.replaceTupleStream(gatherOp, mapping);
-      // graphRef->getParentOfType<ModuleOp>().dump();
       return success();
    }
    private:
